@@ -1,0 +1,45 @@
+project:
+  type: website
+  output-dir: docs
+author: zoo un park
+website:
+  title: USA-KOREA crossover economics
+  navbar:
+    left:
+    - text: About You
+      href: ./about/about_me.qmd
+    - text: Introduction
+      href: ./introduction/introduction.qmd
+    - text: Data Sources
+      href: ./data_source/data_source.qmd
+    - text: Data Visualization
+      href: ./data_viz/viz.qmd
+    - text: Exploratory Data Analysis
+      href: ./EDA/eda.qmd
+    - text: Time Series Models
+      menu:
+      - text: Univariate TS Models (ARIMA/SARIMA)
+        href: ./ts/uni.qmd
+      - text: Multivariate TS Models (ARIMAX/SARIMAX/VAR)
+        href: ./ts/multi.qmd
+      - text: Financial Time Series Models (ARCH/GARCH)
+        href: ./ts/financial_ts.qmd
+      - text: Deep Learning for TS
+        href: ./ts/dl.qmd
+      - text: 'Other: Interrupted TS/ARFIMA/Spectral Analysis'
+        href: ./ts/other.qmd
+    - text: Conclusions
+      href: ./conclusions/conclusion.qmd
+    collapse: true
+format:
+  html:
+    theme: cosmo
+    bibliography:   ./assets/references.bib
+    csl:  ./assets/nature.csl
+    toc: true
+    code-fold: true
+    code-tools: false
+    code-block-bg: true
+    code-line-numbers: false
+execute:
+  echo: false

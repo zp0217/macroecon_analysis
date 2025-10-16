@@ -1,0 +1,4 @@
+- source: project
+  quarto-pub:
+    - id: ee25c604-daa9-4638-bd9d-a9dad9ca5aab
+      url: 'https://zp0217.quarto.pub/assets'

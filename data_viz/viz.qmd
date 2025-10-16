@@ -1,0 +1,580 @@
+---
+title: "Data Visualization"
+format: html
+code-fold: true
+---
+
+### packages used
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+library(readr)
+library(dplyr)
+library(tidyr)
+library(plotly)
+library(ggplot2)
+library(here)
+library(lubridate)
+```
+
+## exchange rates
+
+
+```{=html}
+<div class='tableauPlaceholder' id='viz1760027460118' style='position: relative'><noscript><a href='#'><img alt='Dashboard 1 ' src='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;in&#47;interestrate_17600273714650&#47;Dashboard1&#47;1_rss.png' style='border: none' /></a></noscript><object class='tableauViz'  style='display:none;'><param name='host_url' value='https%3A%2F%2Fpublic.tableau.com%2F' /> <param name='embed_code_version' value='3' /> <param name='site_root' value='' /><param name='name' value='interestrate_17600273714650&#47;Dashboard1' /><param name='tabs' value='no' /><param name='toolbar' value='yes' /><param name='static_image' value='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;in&#47;interestrate_17600273714650&#47;Dashboard1&#47;1.png' /> <param name='animate_transition' value='yes' /><param name='display_static_image' value='yes' /><param name='display_spinner' value='yes' /><param name='display_overlay' value='yes' /><param name='display_count' value='yes' /><param name='language' value='en-US' /></object></div>                <script type='text/javascript'>                    var divElement = document.getElementById('viz1760027460118');                    var vizElement = divElement.getElementsByTagName('object')[0];                    if ( divElement.offsetWidth > 800 ) { vizElement.style.width='1000px';vizElement.style.height='827px';} else if ( divElement.offsetWidth > 500 ) { vizElement.style.width='1000px';vizElement.style.height='827px';} else { vizElement.style.width='100%';vizElement.style.height='727px';}                     var scriptElement = document.createElement('script');                    scriptElement.src = 'https://public.tableau.com/javascripts/api/viz_v1.js';                    vizElement.parentNode.insertBefore(scriptElement, vizElement);                </script>
+```
+
+Interest rate is a key fundamental index in country's economics since it influences every economic field in the country. these two plots shows US and south korea interest rates. overall, south korea interest rate tends to follow U.S interest rate, most of the trend is very similar. notable part in two plots are after 2009 to 2015, which was after global economic crisis. U.S has cut interest rate close to zero, whereas south korea maintained its rate around 2-3%.  
+
+
+# FX rate performace
+
+::: panel-tabset
+
+### kRW/USD Exchange Rate
+
+```{r,waring = F, message = F}
+#| echo: true
+#| code-fold: true
+
+kr <- read.csv("../data/fx rate/kor.csv")
+kr <- kr %>%
+  transmute(
+    Date = as.Date(observation_date),
+    krw  = DEXKOUS,    
+    usd  = 1 / DEXKOUS  
+  ) %>%
+  filter(!is.na(Date)) %>%
+  arrange(Date) %>%
+  distinct(Date, .keep_all = TRUE) %>%
+  complete(Date = seq(min(Date), max(Date), by = "day")) %>%
+
+  fill(krw, usd, .direction = "down")
+
+p_us <- plot_ly(kr, x = ~Date, y = ~usd, type = "scatter", mode = "lines",
+                 name = "USD per KRW") %>%
+  layout(title = "USD per KRW",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "USD per KRW"))
+p_us
+```
+
+The KRW/USD exchange rate chart shows a long-term depreciation of the Korean won against the U.S. dollar, meaning the won’s value has declined over time. The most dramatic movement occurred during the 1997–1998 Asian Financial Crisis, when South Korea faced severe financial instability, capital flight, and had to seek an IMF bailout, causing a sharp fall in the won’s value. After this crisis, the currency gradually stabilized but continued to fluctuate with global market conditions. Noticeable spikes appear during major global stress periods, such as the 2008 Global Financial Crisis and the 2020 COVID-19 pandemic, when investors moved toward the U.S. dollar as a safe haven. Overall, despite Korea’s strong economic growth, long-term depreciation reflects factors such as persistent current account pressures, inflation differentials, and the enduring global strength of the U.S. dollar.
+
+
+
+### US dollar index 
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+usd <- read_csv("../data/fx rate/usd_index.csv", show_col_types = FALSE)
+
+usd <- usd %>%
+  transmute(
+    Date = as.Date(Date),
+    usd_index = Close
+  ) %>%
+  filter(!is.na(Date)) %>%
+  arrange(Date) %>%
+  distinct(Date, .keep_all = TRUE) %>%
+  complete(Date = seq(min(Date), max(Date), by = "day")) %>%
+  fill(usd_index, .direction = "down")
+
+
+p_usdidx <- plot_ly(usd, x = ~Date, y = ~usd_index, type = "scatter", mode = "lines",
+                    name = "USD Index") %>%
+  layout(title = "USD Index ",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "USD Index"))
+p_usdidx
+```
+
+
+The USD Index chart shows long-term fluctuations in the strength of the U.S. dollar against a basket of major currencies. The index peaked sharply in the mid-1980s, driven by tight U.S. monetary policy and high interest rates. It then declined through the late 1980s and 1990s as global imbalances adjusted and U.S. trade deficits widened. Around 2000–2002, the dollar rose again amid the tech boom and strong U.S. growth before falling through the 2000s due to large deficits and the 2008 financial crisis. After bottoming near 2008, the USD gradually strengthened as the U.S. recovered faster than other economies, especially during the Fed’s tightening cycle from 2015 onward. The index spiked again in 2022 as aggressive rate hikes and global risk aversion boosted demand for dollars, before softening slightly toward 2024–2025 as inflation pressures eased and expectations of future U.S. rate cuts grew.
+
+:::
+
+
+
+# kRW/USD Exchange Rate vs USD index (dual axis)
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+both <- inner_join(
+  kr %>% select(Date, usd),     
+  usd %>% select(Date, usd_index),
+  by = "Date"
+) %>%
+  arrange(Date)
+
+if (nrow(both) > 0) {
+  base_krw  <- both$usd[1]
+  base_usdx <- both$usd_index[1]
+  both_idx <- both %>%
+    mutate(
+      KRW_indexed   = usd / base_krw  * 100,
+      USDIDX_indexed = usd_index / base_usdx * 100
+    )
+
+}
+
+
+p_dual <- plot_ly(both, x = ~Date) %>%
+  add_lines(y = ~usd, name = "KRW per USD", yaxis = "y1") %>%
+  add_lines(y = ~usd_index, name = "USD Index", yaxis = "y2") %>%
+  layout(title = "USD per KRW vs USD Index",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "USD per kRW"),
+         yaxis2 = list(title = "USD Index", overlaying = "y", side = "right"))
+p_dual
+```
+
+This chart compares the USD/KRW exchange rate with the U.S. Dollar Index over time. Both generally move together—when the dollar strengthens globally, the won tends to weaken. The sharp fall in the won during the 1997–1998 Asian Financial Crisis and spikes around 2008 and 2022 align with surges in the USD Index, reflecting global risk aversion and demand for the dollar. Overall, the chart shows that the Korean won closely tracks global dollar trends, weakening when the USD strengthens worldwide.
+
+:::
+
+
+
+
+### seoul housing price 
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+housing <- read_csv(here("data/housing/seoul_housing.csv"), skip = 3) %>%
+  select(Date = `TIME_PERIOD:Period`, housing = `OBS_VALUE:Value`)%>%
+  mutate(Date = as.Date(Date))
+
+df <- housing %>% mutate(Date = as.Date(Date))
+p <- plot_ly(
+  data = housing,
+  x = ~Date,
+  y = ~housing,
+  type = "scatter",
+  mode = "lines",
+  line = list(color = "orange", width = 2),
+  hovertemplate = paste0(
+    "<b>%{x|%b %Y}</b><br>",
+    "Index: %{y:.1f}<extra></extra>"
+  )
+) |>
+  layout(
+    title = list(
+      text = "Seoul Real Property Price Index",
+      x = 0.05, xanchor = "left"
+    ),
+    xaxis = list(
+      title = NULL,
+      rangeslider = list(visible = TRUE),
+      rangeselector = list(
+        buttons = list(
+          list(count = 6, label = "6m", step = "month", stepmode = "backward"),
+          list(count = 1, label = "1y", step = "year", stepmode = "backward"),
+          list(count = 5, label = "5y", step = "year", stepmode = "backward"),
+          list(step = "all")
+        )
+      )
+    ),
+    yaxis = list(
+      title = "Index Value",
+      zeroline = FALSE
+    ),
+    hovermode = "x unified"
+  )
+
+p
+```
+
+The Seoul Real Property Price Index shows how housing prices in Seoul have evolved since the early 2000s. Overall, it has increasing trend. Prices rose sharply from 2005 to 2008 before stabilizing after the global financial crisis. From around 2014, the market entered another strong uptrend, accelerating through 2020–2021 due to low interest rates and high liquidity during the pandemic. After peaking around 2021, prices dipped slightly amid tighter monetary policy but have since stabilized, remaining at historically high levels by 2025.
+
+
+# government bond yield
+
+::: panel-tabset
+
+### United states & South korea yield curve(3 years)
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+us_yield  <- read.csv(here("data/yield", "us_yield.csv"))
+kor_yield   <- read.csv(here("data/yield", "kor_yield.csv"))
+
+
+us_yield$Date  <- as.Date(us_yield$Date)
+kor_yield$Date <- as.Date(kor_yield$Date)
+
+colnames(us_yield)[colnames(us_yield)  == "X3Y"]  <- "US_3Y"
+colnames(us_yield)[colnames(us_yield)  == "X10Y"] <- "US_10Y"
+colnames(kor_yield)[colnames(kor_yield) == "X3Y"]  <- "KR_3Y"
+colnames(kor_yield)[colnames(kor_yield) == "X10Y"] <- "KR_10Y"
+
+us_yield  <- us_yield[,  c("Date", "US_3Y", "US_10Y")]
+kor_yield <- kor_yield[, c("Date", "KR_3Y", "KR_10Y")]
+
+us_yield  <- us_yield  %>% arrange(Date) %>% fill(US_3Y, US_10Y, .direction = "down")
+kor_yield <- kor_yield %>% arrange(Date) %>% fill(KR_3Y, KR_10Y, .direction = "down")
+
+df <- merge(us_yield, kor_yield, by = "Date")
+
+
+df3_long <- data.frame(
+  Date    = c(df$Date, df$Date),
+  Yield   = c(df$US_3Y, df$KR_3Y),
+  Country = rep(c("USA", "Korea"), each = nrow(df))
+)
+
+short_plot <- ggplot(df3_long, aes(x = Date, y = Yield, color = Country)) +
+  geom_line() +
+  theme_bw() +
+  labs(title = "3Y Government Bond Yields — USA vs Korea",
+       x = "Date", y = "Yield (%)")
+
+
+short_plot
+
+```
+
+Both U.S. and Korean 3-year bond yields trended downward from 2000 until the 2020s, reflecting global monetary easing and low inflation. Yields dropped sharply during the 2008 financial crisis and the 2020 pandemic, then surged in 2021–2023 as inflation spiked and central banks tightened policy. Recently, U.S. yields remain higher than Korea’s due to persistent inflation and a stronger policy stance by the Federal Reserve.
+
+
+
+### United states & South korea yield curve(10 years)
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+us_yield  <- read.csv(here("data/yield", "us_yield.csv"))
+kor_yield   <- read.csv(here("data/yield", "kor_yield.csv"))
+
+
+us_yield$Date  <- as.Date(us_yield$Date)
+kor_yield$Date <- as.Date(kor_yield$Date)
+
+colnames(us_yield)[colnames(us_yield)  == "X3Y"]  <- "US_3Y"
+colnames(us_yield)[colnames(us_yield)  == "X10Y"] <- "US_10Y"
+colnames(kor_yield)[colnames(kor_yield) == "X3Y"]  <- "KR_3Y"
+colnames(kor_yield)[colnames(kor_yield) == "X10Y"] <- "KR_10Y"
+
+us_yield  <- us_yield[,  c("Date", "US_3Y", "US_10Y")]
+kor_yield <- kor_yield[, c("Date", "KR_3Y", "KR_10Y")]
+
+us_yield  <- us_yield  %>% arrange(Date) %>% fill(US_3Y, US_10Y, .direction = "down")
+kor_yield <- kor_yield %>% arrange(Date) %>% fill(KR_3Y, KR_10Y, .direction = "down")
+
+df <- merge(us_yield, kor_yield, by = "Date")
+
+df10_long <- data.frame(
+  Date    = c(df$Date, df$Date),
+  Yield   = c(df$US_10Y, df$KR_10Y),
+  Country = rep(c("USA", "Korea"), each = nrow(df))
+)
+
+long_plot <- ggplot(df10_long, aes(x = Date, y = Yield, color = Country)) +
+  geom_line() +
+  theme_bw() +
+  labs(title = "10Y Government Bond Yields — USA vs Korea",
+       x = "Date", y = "Yield (%)")
+
+long_plot
+```
+
+Long-term yields show similar patterns to short-term ones but are less volatile. After steady declines from the early 2000s to 2020, they rebounded sharply in 2021–2023 amid rising inflation expectations and global rate hikes. The U.S. 10-year yield has lately stayed above Korea’s, reflecting stronger U.S. growth and longer-lasting inflation pressures.
+
+
+###  United states & South korea yield spread(3 years & 10 years)
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+us_yield  <- read.csv(here("data/yield", "us_yield.csv"))
+kor_yield   <- read.csv(here("data/yield", "kor_yield.csv"))
+
+
+us_yield$Date  <- as.Date(us_yield$Date)
+kor_yield$Date <- as.Date(kor_yield$Date)
+
+colnames(us_yield)[colnames(us_yield)  == "X3Y"]  <- "US_3Y"
+colnames(us_yield)[colnames(us_yield)  == "X10Y"] <- "US_10Y"
+colnames(kor_yield)[colnames(kor_yield) == "X3Y"]  <- "KR_3Y"
+colnames(kor_yield)[colnames(kor_yield) == "X10Y"] <- "KR_10Y"
+
+us_yield  <- us_yield[,  c("Date", "US_3Y", "US_10Y")]
+kor_yield <- kor_yield[, c("Date", "KR_3Y", "KR_10Y")]
+
+us_yield  <- us_yield  %>% arrange(Date) %>% fill(US_3Y, US_10Y, .direction = "down")
+kor_yield <- kor_yield %>% arrange(Date) %>% fill(KR_3Y, KR_10Y, .direction = "down")
+
+
+df <- merge(us_yield, kor_yield, by = "Date")
+
+df$US_3m10  <- df$US_3Y - df$US_10Y
+df$KR_3m10  <- df$KR_3Y - df$KR_10Y
+df$US_KR_3Y <- df$US_3Y - df$KR_3Y
+df$US_KR_10Y<- df$US_10Y - df$KR_10Y
+
+fig <- plot_ly(df, x = ~Date) |>
+  add_lines(y = ~US_3m10,  name = "US 3Y−10Y") |>
+  add_lines(y = ~KR_3m10,  name = "KR 3Y−10Y") |>
+  add_lines(y = ~US_KR_3Y, name = "US−KR (3Y)") |>
+  add_lines(y = ~US_KR_10Y, name = "US−KR (10Y)") |>
+  layout(title = "Yield Spreads: Term (3Y−10Y) and Cross-country (US−KR)",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "Spread (pp)"))
+fig
+```
+
+
+Yield curve spreads show frequent inversions in both countries—most notably before major downturns like 2008, 2020, and 2023—signaling economic slowdowns. Cross-country spreads indicate that U.S. yields have exceeded Korea’s in recent years, driven by higher inflation, stronger demand, and a more aggressive U.S. tightening cycle.
+
+:::
+
+::: panel-tabset
+
+
+### USA - Korea trade: export & imports(USD) bar plot
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+imports <- read.csv(here("data/trade", "imports.csv"),  check.names = FALSE, stringsAsFactors = FALSE)
+exports <- read.csv(here("data/trade", "exports.csv"),  check.names = FALSE, stringsAsFactors = FALSE)
+exports$Date <- as.Date(paste0(sub("^([0-9]{4})([0-9]{2})$", "\\1-\\2",
+                                   gsub("/", "-", as.character(exports$Date))), "-01"))
+imports$Date <- as.Date(paste0(sub("^([0-9]{4})([0-9]{2})$", "\\1-\\2",
+                                   gsub("/", "-", as.character(imports$Date))), "-01"))
+
+m <- merge(exports, imports, by = "Date", all = TRUE)
+m$year <- as.integer(format(m$Date, "%Y"))
+m$USD.x <- as.numeric(gsub("[^0-9.-]", "", as.character(m$USD.x)))
+m$USD.y <- as.numeric(gsub("[^0-9.-]", "", as.character(m$USD.y)))
+m<-m%>%
+  rename(export_USD = USD.x,import_USD = USD.y)
+
+
+ann <- aggregate(cbind(export_USD, import_USD) ~ year, data = m, sum, na.rm = TRUE)
+y_title <- "USD(Thousands)"
+
+mat <- t(as.matrix(ann[, c("export_USD", "import_USD")]))
+colnames(mat) <- ann$year
+
+fig <- plot_ly(ann, x = ~year, y = ~export_USD, type = "bar", name = "Exports") %>%
+  add_trace(y = ~import_USD, name = "Imports") %>%
+  layout(
+    title = "Bar plot: USA-South Korea Exports and Imports",
+    barmode = "group",
+    xaxis = list(title = "Year"),
+    yaxis = list(title = y_title, tickformat = ",.0f"),
+    legend = list(orientation = "h", x = 0.01, y = 1.08),
+    hovermode = "x unified"
+  )
+
+fig
+
+```
+
+ The bar graph shows a steady rise in trade between the U.S. and South Korea since the 1990s. Both exports and imports have grown significantly, with exports generally exceeding imports, indicating a consistent U.S. trade surplus with Korea. Trade expanded sharply after 2010, especially following the KORUS FTA in 2012, and peaked around 2022 due to strong post-pandemic demand before stabilizing in recent years.
+
+
+
+### USA - Korea trade: export & imports(USD) bubble plot
+
+```{r,warning= F,message = F}
+#| echo: true
+#| code-fold: true
+
+imports <- read.csv(here("data/trade", "import.csv"),  check.names = FALSE, stringsAsFactors = FALSE)
+exports <- read.csv(here("data/trade", "export.csv"),  check.names = FALSE, stringsAsFactors = FALSE)
+
+colnames(imports)[1:2] <- c("Date", "Imports")
+colnames(exports)[1:2] <- c("Date", "Exports")
+
+imports$Date   <- ym(imports$Date)                           
+exports$Date   <- ym(exports$Date)
+imports$Imports <- as.numeric(gsub(",", "", imports$Imports)) 
+exports$Exports <- as.numeric(gsub(",", "", exports$Exports))
+
+
+df <- inner_join(exports[, c("Date","Exports")], imports[, c("Date","Imports")], by = "Date")
+df <- df %>%
+  mutate(TradeBalance = Exports - Imports)
+
+size_var <- abs(df$TradeBalance)
+sizeref  <- 2 * max(size_var, na.rm = TRUE) / (60^2)  
+
+hover_txt <- paste0(
+  "Date: ", format(df$Date, "%Y-%m"),
+  "<br>Exports(USD thousands): ", format(round(df$Exports), big.mark = ","),
+  "<br>Imports(USD thousands): ", format(round(df$Imports), big.mark = ","),
+  "<br>Trade Balance: ", format(round(df$TradeBalance), big.mark = ",")
+)
+
+plot_ly(
+  df,
+  x = ~Exports,
+  y = ~Imports,
+  type = "scatter",
+  mode = "markers",
+  text = hover_txt,
+  hoverinfo = "text",
+  marker = list(
+    sizemode = "area",
+    sizeref  = sizeref,
+    sizemin  = 4
+  ),
+  size = ~size_var,
+  color = ~(TradeBalance >= 0),           
+  colors = c("red", "blue")              
+) %>%
+  layout(
+    title = "South Korea: Exports vs Imports (Bubble size = |Trade Balance|)",
+    xaxis = list(title = "Exports"),
+    yaxis = list(title = "Imports")
+  )
+
+```
+
+
+The scatter plot illustrates the relationship between South Korea’s exports and imports, where most points lie along a positive trend line—higher exports usually coincide with higher imports. Blue bubbles (trade surplus) dominate, showing Korea typically exports more than it imports, while red bubbles (deficits) are less frequent and smaller. Larger bubbles during recent years reflect greater trade volumes and larger surpluses, emphasizing Korea’s strong export-driven economy.
+
+:::
+
+
+
+
+::: panel-tabset
+
+
+### USD index candlestick plot
+
+```{r,warning = F, message = F}
+#| echo: true
+#| code-fold: true
+
+usd <- read_csv("../data/fx rate/usd_index.csv", show_col_types = FALSE)
+usd$Date <- as.Date(usd$Date)
+
+usd_plot <- plot_ly(
+  data = usd,
+  x = ~Date,
+  type = "candlestick",
+  open = ~Open,
+  high = ~High,
+  low = ~Low,
+  close = ~Close,
+  name = "USD Index"
+) %>%
+  layout(
+    title = "USD Index",
+    yaxis = list(title = "USD index"),
+    xaxis = list(
+      title = "Date",
+      tickformat = "%Y",
+      dtick = "M12"
+    ),
+    legend = list(x = 0.1, y = 0.9)
+  )
+
+usd_plot
+
+```
+
+ The USD Index remained relatively stable from 2016 to 2020 but rose sharply in 2021–2022 as the Federal Reserve tightened monetary policy and global investors sought the dollar as a safe haven. This reflects a period of strong U.S. economic recovery, high inflation, and interest rate hikes that boosted dollar demand worldwide.
+
+
+
+
+### S&P500 index candlestick plot
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+sp500 <- read_csv("../data/stock/sp500.csv")
+
+sp500$Date <- as.Date(sp500$Date)
+
+sp500_plot <- plot_ly(
+  data = sp500,
+  x = ~Date,
+  type = "candlestick",
+  open = ~Open,
+  high = ~High,
+  low = ~Low,
+  close = ~Close,
+  name = "S&P 500 Index"
+) %>%
+  layout(
+    title = "S&P 500 Index",
+    yaxis = list(title = "S&P 500 index"),
+    xaxis = list(
+      title = "Date",
+      tickformat = "%Y",
+      dtick = "M12"
+    ),
+    legend = list(x = 0.1, y = 0.9)
+  )
+
+sp500_plot
+
+```
+
+The S&P 500 shows long-term growth with major dips during crises such as the 2008 financial collapse and the 2020 pandemic. After 2020, it surged to record highs driven by tech gains, monetary easing, and post-pandemic recovery, though volatility increased with inflation and tightening in 2022–2023.
+
+
+
+### KOSPI index candlestick plot
+
+```{r,warning = F, message = F}
+#| echo: true
+#| code-fold: true
+
+kospi <- read_csv("../data/stock/kospi.csv")
+kospi$Date <- as.Date(kospi$Date)
+
+sp_plot <- plot_ly(
+  data = kospi,
+  x = ~Date,
+  type = "candlestick",
+  open = ~Open,
+  high = ~High,
+  low = ~Low,
+  close = ~Close,
+  name = "KOSPI Index"
+) %>%
+  layout(
+    title = "KOSPI Index",
+    yaxis = list(title = "KOSPI index"),
+    xaxis = list(
+      title = "Date",
+      tickformat = "%Y",
+      dtick = "M12"
+    ),
+    legend = list(x = 0.1, y = 0.9)
+  )
+
+sp_plot
+
+```
+
+ The KOSPI Index displays steady growth over time, with notable downturns during the 2008 financial crisis and the 2020 pandemic, followed by strong rebounds. It reached record highs in the early 2020s, supported by Korea’s export strength and global tech demand, though volatility rose amid global rate hikes and slower growth.
+
+
+:::
+
+
+
+
+
+
+

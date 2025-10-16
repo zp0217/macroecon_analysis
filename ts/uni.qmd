@@ -1,0 +1,1598 @@
+---
+title: "Univariate TS Models(ARIMA/SARIMA)"
+format: html
+---
+
+
+# package needed 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+library(fpp3)  
+library(feasts) 
+library(tsibble)
+library(tidyverse)
+library(lubridate)
+library(zoo)       
+library(forecast)   
+library(tseries)   
+library(patchwork) 
+library(here)
+library(plotly)
+library(xts)
+library(dplyr)
+library(ggplot2)
+library(ggfortify)
+library(knitr)
+library(kableExtra)
+library(astsa)
+library(fpp2)
+# calling data
+
+#KR base rate
+bok<- read.csv("../data/interest/bok.csv")%>%
+  rename(Date = date)
+bok$Date<- as.Date(bok$Date)
+bok <- bok %>%
+  mutate(Date = floor_date(Date, unit = "quarter")) %>%
+  group_by(Date) %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE)), .groups = "drop")
+
+
+# FED rate 
+
+usr<- read.csv("../data/interest/us_rate.csv")%>%
+  rename(Date = observation_date,rate = DFF)
+usr$Date<- as.Date(usr$Date)
+usr<- usr %>%
+  mutate(Date = floor_date(Date, unit = "quarter")) %>%
+  group_by(Date) %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE)), .groups = "drop")
+
+# KRW/USD rate
+
+kr <- read.csv("../data/fx rate/kor.csv")
+kr <- kr %>%
+  transmute(
+    Date = as.Date(observation_date),
+    krw  = DEXKOUS,    
+    usd  = 1 / DEXKOUS  
+  ) %>%
+  filter(!is.na(Date)) %>%
+  arrange(Date) %>%
+  distinct(Date, .keep_all = TRUE) %>%
+  complete(Date = seq(min(Date), max(Date), by = "day")) %>%
+
+  fill(krw, usd, .direction = "down")
+
+
+# USD index 
+
+usd <- read_csv("../data/fx rate/usd_index.csv", show_col_types = FALSE)
+usd <- usd %>%
+  transmute(
+    Date = as.Date(Date),
+    usd_index = Close
+  ) %>%
+  filter(!is.na(Date)) %>%
+  arrange(Date) %>%
+  distinct(Date, .keep_all = TRUE) %>%
+  complete(Date = seq(min(Date), max(Date), by = "day")) %>%
+  fill(usd_index, .direction = "down")
+
+
+
+# Seoul housing data
+
+housing <- read_csv(here("data/housing/seoul_housing.csv"), skip = 3) %>%
+  select(Date = `TIME_PERIOD:Period`, housing = `OBS_VALUE:Value`)%>%
+  mutate(Date = as.Date(Date))
+
+housing <- housing %>% mutate(Date = as.Date(Date))
+
+
+# Yield data 
+
+us_yield  <- read.csv(here("data/yield", "us_yield.csv"))
+kor_yield   <- read.csv(here("data/yield", "kor_yield.csv"))
+
+
+us_yield$Date  <- as.Date(us_yield$Date)
+kor_yield$Date <- as.Date(kor_yield$Date)
+
+colnames(us_yield)[colnames(us_yield)  == "X3Y"]  <- "US_3Y"
+colnames(us_yield)[colnames(us_yield)  == "X10Y"] <- "US_10Y"
+colnames(kor_yield)[colnames(kor_yield) == "X3Y"]  <- "KR_3Y"
+colnames(kor_yield)[colnames(kor_yield) == "X10Y"] <- "KR_10Y"
+
+us_yield  <- us_yield[,  c("Date", "US_3Y", "US_10Y")]
+kor_yield <- kor_yield[, c("Date", "KR_3Y", "KR_10Y")]
+
+us_yield  <- us_yield  %>% arrange(Date) %>% fill(US_3Y, US_10Y, .direction = "down")
+kor_yield <- kor_yield %>% arrange(Date) %>% fill(KR_3Y, KR_10Y, .direction = "down")
+
+
+df <- merge(us_yield, kor_yield, by = "Date")
+
+df$US_3m10  <- df$US_3Y - df$US_10Y
+df$KR_3m10  <- df$KR_3Y - df$KR_10Y
+df$US_KR_3Y <- df$US_3Y - df$KR_3Y
+df$US_KR_10Y<- df$US_10Y - df$KR_10Y
+
+
+#import & export data 
+
+imports <- read_csv(here::here("data/trade", "imports.csv"))
+exports <- read_csv(here::here("data/trade", "exports.csv"))
+
+clean_date <- function(x) {
+  as.Date(paste0(sub("^([0-9]{4})([0-9]{2})$", "\\1-\\2", gsub("/", "-", as.character(x))), "-01"))
+}
+
+imports <- imports %>%
+  mutate(Date = clean_date(Date),
+         Type = "Imports")
+
+exports <- exports %>%
+  mutate(Date = clean_date(Date),
+         Type = "Exports")
+trade <- bind_rows(imports, exports)
+
+names(trade)[2] <- "Value"
+
+trade_ts <- trade %>%
+  as_tsibble(index = Date, key = Type)
+
+
+# S&P500 data
+sp500 <- read_csv("../data/stock/sp500.csv")
+
+
+# KOSPI data
+kospi <- read_csv("../data/stock/kospi.csv")
+kospi$Date <- as.Date(kospi$Date)
+
+```
+
+
+
+::: {.callout-note appearance="simple"}
+
+# note
+
+In the EDA part, there is stationary observed from ACF and PACF plot except seoul housing index. Also ADF test(after differencing) confirms this with significant low p-value.
+
+:::
+
+
+# Differencing
+
+
+::: panel-tabset
+
+
+### South korea base rate
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+
+bok_ts <- ts(bok$base_rate, start = c(year(min(bok$Date)), month(min(bok$Date))), end = c(year(max(bok$Date)), month(max(bok$Date))), frequency=4)
+bok_diff<- diff(bok_ts,differences = 2)
+ggAcf(bok_diff) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced(2): ACF of South Korea base rate") +
+  theme_bw()
+
+ggPacf(bok_diff) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced(2): PACF of South Korea base rate") +
+  theme_bw()
+```
+
+
+### Federal Reserve Rate 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+usr_ts <- ts(usr$rate, start = c(year(min(usr$Date)), month(min(usr$Date))), end = c(year(max(usr$Date)), month(max(usr$Date))),frequency= 4)
+usr_diff<- diff(usr_ts,differences = 2)
+
+ggAcf(usr_diff) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced(2): ACF of Federal Reserve Rate ") +
+  theme_bw()
+
+ggPacf(usr_diff) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced(2): PACF of Federal Reserve Rate ") +
+  theme_bw()
+```
+
+
+### KRW/USD FX rate
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+
+kr_ts<- ts(kr$usd, frequency = 252, start = c(year(min(kr$Date)), month(min(kr$Date))), end = c(year(max(kr$Date)), month(max(kr$Date))))
+kr_diff<- diff(kr_ts,differences = 2)
+
+ggAcf(kr_diff,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced(2): ACF of KRW/USD FX rate") +
+  theme_bw()
+
+ggPacf(kr_diff,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced(2): PACF of  KRW/USD FX rate") +
+  theme_bw()
+```
+
+
+### trade import South Korea vs USA
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+import_ts<- ts(imports$USD, frequency = 12, start = c(year(min(imports$Date)), month(min(imports$Date))), end = c(year(max(imports$Date)), month(max(imports$Date))))
+import_diff <- diff(import_ts,differences = 2)
+
+ggAcf(import_diff) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced(2): ACF of trade import South Korea vs USA") +
+  theme_bw()
+
+ggPacf(import_diff) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced(2): PACF of trade import South Korea vs USA") +
+  theme_bw()
+```
+
+
+### trade export South Korea vs USA
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+export_ts<- ts(exports$USD, frequency = 12, start = c(year(min(exports$Date)), month(min(exports$Date))), end = c(year(max(exports$Date)), month(max(exports$Date))))
+export_diff <- diff(export_ts,differences = 2)
+
+ggAcf(export_diff) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced(2): ACF of trade export South Korea vs USA") +
+  theme_bw()
+
+ggPacf(export_diff) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced(2): PACF of trade export South Korea vs USA") +
+  theme_bw()
+```
+
+
+### USA & South Korea yield spread rate(3Y)
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+yield_3y_ts<- ts(df$US_KR_3Y, frequency = 252, start = c(year(min(df$Date)), month(min(df$Date))), end = c(year(max(df$Date)), month(max(df$Date))))
+yield_3y_ts_diff <- diff(yield_3y_ts,differences = 2)
+
+ggAcf(yield_3y_ts_diff,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced(2): ACF of USA & South Korea yield spread rate(3Y)") +
+  theme_bw()
+
+ggPacf(yield_3y_ts_diff,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced(2): PACF of USA & South Korea yield spread rate(3Y)") +
+  theme_bw()
+```
+
+
+### USA & South Korea yield spread rate(10Y)
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+yield_10y_ts<- ts(df$US_KR_10Y, frequency = 252, start = c(year(min(df$Date)), month(min(df$Date))), end = c(year(max(df$Date)), month(max(df$Date))))
+yield_10y_ts_diff <- diff(yield_10y_ts,differences = 2)
+
+ggAcf(yield_10y_ts_diff,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced(2): ACF of USA & South Korea yield spread rate(10Y)") +
+  theme_bw()
+
+ggPacf(yield_10y_ts_diff,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced(2): PACF of USA & South Korea yield spread rate(10Y)") +
+  theme_bw()
+```
+
+
+
+### Seoul housing  property index 
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+house_ts<- ts(housing$housing, frequency = 12, start = c(year(min(housing$Date)), month(min(housing$Date))), end = c(year(max(housing$Date)), month(max(housing$Date))))
+house_dlog <- diff(house_ts,differences = 2)
+
+ggAcf(house_dlog) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced(2): ACF of Seoul housing  property index ") +
+  theme_bw()
+
+ggPacf(house_dlog) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced(2): PACF of Seoul housing  property index ") +
+  theme_bw()
+
+
+adf.test(house_dlog)
+```
+
+
+### USD index
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+usd_ts <- ts(usd$usd_index, start = c(year(min(usd$Date)), month(min(usd$Date))), end = c(year(max(usd$Date)), month(max(usd$Date))), frequency = 252)
+usd_log  <- log(usd_ts)
+usd_dlog <- diff(usd_log,diff = 2) 
+
+ggAcf(usd_dlog,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced(2): ACF of USD index") +
+  theme_bw()
+
+ggPacf(usd_dlog,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced(2): PACF of USD index") +
+  theme_bw()
+```
+
+
+### KOSPI index 
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+kospi_ts <- ts(kospi$Close, start = c(year(min(kospi$Date)), month(min(kospi$Date))), end = c(year(max(kospi$Date)), month(max(kospi$Date))), frequency = 250)
+kospi_log  <- log(kospi_ts)
+kospi_dlog <- diff(kospi_log,differences = 2) 
+
+ggAcf(kospi_dlog,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced(2): ACF of KOSPI index") +
+  theme_bw()
+
+ggPacf(kospi_dlog,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced(2): PACF of KOSPI index") +
+  theme_bw()
+```
+
+### S&P500 index
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+
+sp_ts <- ts(sp500$Close, start = c(year(min(sp500$Date)), month(min(sp500$Date))), end = c(year(max(sp500$Date)), month(max(sp500$Date))), frequency = 252)
+sp_log  <- log(sp_ts)
+sp_dlog <- diff(sp_log,differences = 2) 
+
+ggAcf(sp_dlog,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced(2): ACF of S&P500 index") +
+  theme_bw()
+
+ggPacf(sp_dlog,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced (2): PACF of S&P500 index") +
+  theme_bw()
+```
+
+:::
+
+In the previous EDA section, we examined ACF & PACF plot before and after differencing. before starting univariate time series analysis, it is important whether differenced result is satisfied for choosing parameter for univariate time series analysis.
+
+Table above is a  ACF & PACF plot for differencing, but this time, using second order differencing. 
+In the EDA section, seoul housing index was still suspected non-stationary after first differencing, and in the second differencing,it seems it gives different result. The ACF shows small correlations scattered throughout the lags, with most staying within the confidence bounds. There are some noticeable spikes at lags around 10, 12-13, 16, 18, and 21, but these are relatively modest in magnitude (mostly under 0.15). The overall pattern shows no strong persistence or decay structure. The PACF displays a similar pattern with scattered small spikes, with a notable negative spike at lag 12 (approximately -0.20) and positive spikes at lags 16 and 18. Most other lags remain within the confidence bounds.So second-order differenced series appears to be stationary.
+
+although ADF test result and ACF & PACF plot tells first order differencing(for some variables, log transformation was also done) is enough,except seoul housing index, to make firm decision on parameters, this table has been added. from the plots, it seems that taking second order differencing doesn't improve significantly for other variables, so for univariate time series, first order differencing will be used for determining model parameters. 
+
+Based on the result, next step is to find model selection and its parameter. Table below are the parameters will be used for search algorithm for each data. 
+
+
+## Model choices
+
+| Series | Model parameters|
+|:-------|:------------:|
+| South Korea base rate | ARIMA  p = 0,1 d = 1 ,q = 0,1 |
+|FED effective rate  | ARIMA  p = 0,1,2 , d = 0,1 , q = 0,1,2 |
+| KRW/USD FX rate | ARIMA  p = 0,1 d = 0,1 q =  0,1 |
+| Yield spread 3Y (US–KR) | ARIMA p = 0,1 d = 1  q = 0,1|
+| Yield spread 10Y (US–KR) | ARIMA  p = 0,1 d = 1  q = 0,1|
+| USD index (log) | ARIMA p = 0,1  d =  1, , q = 0,1|
+| KOSPI index (log) | ARIMA p = 0,1 d = 1,q = 0,1,2 |
+| S&P 500 index (log) | ARIMA p = 0,1 d = 0,1,  q =  0,1 |
+|trade export KOR - USA| SARIMA  p = 0,1,d = 0,1 q = 0,1, P = 0,1,2,3 D = 0,1,Q = 0,1 , s= 12|
+|trade import KOR -USA | SARIMA  p = 0,1,d = 0,1 q = 0,1, P = 0,1,2 D = 0,1,Q = 0,1, s = 12|
+| Seoul housing property index | SARIMA p =0,1 ,d = 0,1,2 q = 0,1,2  P = 0,1, D = 0,1 ,Q = 0,1,2 ,s = 12|
+: Model & Parameter selection (USD, KOSPI, and S&P500 are log-transformed before differencing.)
+
+
+
+
+# Model selection
+
+
+### ARIMA utility function
+
+```{r,message = F,waring = F}
+#| echo: true
+#| code-fold: true
+#| results: asis
+
+library(kableExtra)
+
+arima_grid <- function(ts_obj,
+                           p_set, d_set, q_set,
+                           caption1 = NULL,
+                           caption2 = "Comparison of ARIMA Models") {
+  ARIMA_fit <- list()
+  
+  n <- length(p_set) * length(d_set) * length(q_set)
+
+  results_matrix <- matrix(NA_real_, nrow = n, ncol = 6)
+  
+  cc <- 1
+  
+  for (d in d_set) {
+    for (p in p_set) {
+      for (q in q_set) {
+        model <- Arima(ts_obj, order = c(p, d, q), include.drift = (d > 0))
+        ARIMA_fit[[cc]] <- model
+        results_matrix[cc, ] <- c(p, d, q, model$aic, model$bic, model$aicc)
+        cc <- cc + 1
+      }
+    }
+  }
+  
+  results_df <- as.data.frame(results_matrix)
+  colnames(results_df) <- c("p","d","q","AIC","BIC","AICc")
+  
+
+  highlight_row <- which.min(results_df$AIC)
+  
+cap <- if (!is.null(caption1) && nzchar(caption1)) {
+    sprintf("%s : %s", caption1, caption2)
+  } else {
+    caption
+  }
+  result_table<-knitr::kable(results_df, align = 'c', caption = cap) %>%
+    kable_styling(full_width = FALSE, position = "center") %>%
+  row_spec(highlight_row, bold = TRUE, background = "#FFFF99")
+  
+  list(
+    table = result_table,
+    best_model = ARIMA_fit[[highlight_row]],
+    best_row = results_df[highlight_row, , drop = FALSE]
+  )
+  
+
+}
+
+```
+
+
+:::  panel-tabset
+
+### South korea base rate 
+```{r,message = F,waring = F}
+#| echo: true
+#| code-fold: true
+
+fit_kor_base <- arima_grid(
+  ts_obj = kr_ts,
+  p_set = c(0,1), d_set = c(1), q_set = c(0,1),
+  caption1 = "South Korea Base Rate "
+)
+fit_kor_base$table
+print(fit_kor_base$best_model)
+```
+
+Model : ARIMA(0,1,1)
+ 
+ 
+$$
+Equation: x_t = 1.0000x_{t-1} + w_t + 0.0161w_{t-1}
+$$
+
+
+### Federal reserve  rate
+
+```{r,message = F,waring = F}
+#| echo: true
+#| code-fold: true
+
+fit_usr <- arima_grid(
+  ts_obj = usr_ts,
+  p_set = c(0,1), d_set = c(1), q_set = c(0,1,2),
+  caption1 = "FED rate"
+)
+fit_usr$table
+print(fit_usr$best_model)
+```
+
+
+Model: ARIMA(1,1,0) 
+
+$$
+Equation:\; x_t = x_{t-1} + 0.6987(x_{t-1} - x_{t-2}) + 0.0229 + w_t
+$$
+
+### KRW/USD FX rate
+
+```{r,message = F,waring = F}
+#| echo: true
+#| code-fold: true
+ 
+
+fit_kr <- arima_grid(
+  ts_obj = kr_ts,
+  p_set = c(0,1), d_set = c(0,1), q_set = c(0,1),
+  caption1 = "KRW/USD FX rate"
+)
+fit_kr$table
+print(fit_kr$best_model)
+
+```
+
+Model: ARIMA(1,0,1)
+
+$$
+Equation:\; x_t = 0.9997x_{t-1} + w_t + 0.0165w_{t-1} + 0.0011
+$$
+
+
+
+
+### USA & South Korea yield spread rate(3Y)
+
+```{r,message = F,waring = F}
+#| echo: true
+#| code-fold: true
+ 
+
+fit_yield_3y <- arima_grid(
+  ts_obj = yield_3y_ts,
+  p_set = c(0,1), d_set = c(0,1), q_set = c(0,1),
+  caption1 = "USA & South Korea yield spread rate(3Y)"
+)
+fit_yield_3y$table
+print(fit_yield_3y$best_model)
+
+
+```
+
+Model : ARIMA(0,1,1)
+
+
+$$
+Equation:\; x_t = x_{t-1} - 0.0002 + w_t - 0.1069w_{t-1}
+$$
+
+
+
+### USA & South Korea yield spread rate(10Y)
+
+```{r,message = F,waring = F}
+#| echo: true
+#| code-fold: true
+ 
+
+fit_yield_10y <- arima_grid(
+  ts_obj = yield_10y_ts,
+  p_set = c(0,1), d_set = c(0,1), q_set = c(0,1),
+  caption1 = "USA & South Korea yield spread rate(10Y)"
+)
+
+fit_yield_10y$table
+print(fit_yield_10y$best_model)
+
+
+```
+
+
+Model : ARIMA(1,0,1)
+
+$$
+Equation:\; x_t = 0.9968x_{t-1} + w_t - 0.0896w_{t-1} - 0.7027
+$$
+
+
+
+
+### USD index
+
+```{r,message = F,waring = F}
+#| echo: true
+#| code-fold: true
+
+fit_usd_index <- arima_grid(
+  ts_obj = usd_log,
+  p_set = c(0,1), d_set = c(0,1), q_set = c(0,1),
+  caption1 = "USD Index (log)"
+)
+fit_usd_index$table
+print(fit_usd_index$best_model)
+
+```
+
+
+Model: ARIMA(1,0,0)
+
+$$
+Equation:\; x_t = 0.9997x_{t-1} + 4.5713 + w_t
+$$
+
+
+
+### S&P500 index 
+
+```{r,message = F,waring = F}
+#| echo: true
+#| code-fold: true
+
+fit_sp500 <- arima_grid(
+  ts_obj = sp_log,
+  p_set = c(0,1), d_set = c(0,1), q_set = c(0,1),
+  caption1 = "S&P 500 Index (log)"
+)
+fit_sp500$table
+print(fit_sp500$best_model)
+```
+
+Model: ARIMA(0,1,1)
+
+$$
+Equation:\; x_t = x_{t-1} + 0.0003 + w_t - 0.0802w_{t-1}
+$$
+
+
+### KOSPI index 
+
+```{r,message = F,waring = F}
+#| echo: true
+#| code-fold: true
+
+fit_kospi <- arima_grid(
+  ts_obj = kospi_log,
+  p_set = c(0,1), d_set = c(0,1), q_set = c(0,1,2),
+  caption1 = "KOSPI Index (log)"
+)
+
+fit_kospi$table
+print(fit_kospi$best_model)
+
+```
+
+
+Model : ARIMA(0,1,2)
+
+
+$$
+Equation:\; x_t = x_{t-1} + 0.0000 + w_t + 0.0258w_{t-1} - 0.0214w_{t-2}
+$$
+
+
+:::
+
+
+# SARIMA Model
+
+### ACF & PACF plot for seasonal data 
+
+::: panel-tabset 
+
+
+
+### trade import South Korea vs USA
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+import_diff_seasonal <- diff(import_ts,lag = 12)
+
+ggAcf(import_diff_seasonal) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced(seasonal): ACF of trade import South Korea vs USA") +
+  theme_bw()
+
+ggPacf(import_diff_seasonal) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced(seasonal): PACF of trade import South Korea vs USA") +
+  theme_bw()
+```
+
+
+### trade export South Korea vs USA
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+
+export_diff_seasonal <- diff(export_ts,lag = 12)
+
+ggAcf(export_diff_seasonal) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced(seasonal): ACF of trade export South Korea vs USA") +
+  theme_bw()
+
+ggPacf(export_diff_seasonal) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced(seasonal): PACF of trade export South Korea vs USA") +
+  theme_bw()
+```
+
+
+
+### Seoul housing  property index
+
+```{r,message = F,warning= FALSE}
+#| echo: true
+#| code-fold: true
+
+house_diff_seasonal <- diff(house_ts,lag = 12)
+
+ggAcf(house_diff_seasonal) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced(seasonal): ACF of Seoul housing  property index ") +
+  theme_bw()
+
+ggPacf(house_diff_seasonal) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced(seasonal): PACF of Seoul housing  property index ") +
+  theme_bw()
+```
+
+:::
+
+
+### SARIMA utility function
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+#| results: asis
+
+
+library(kableExtra)
+
+sarima_grid <- function(ts_obj,
+                            p_set, d_set, q_set,
+                            P_set, D_set, Q_set, s,
+                            caption_prefix = NULL,
+                            caption_suffix = "Comparison of SARIMA Model"){
+  SARIMA_fit <- list()
+  n <- length(p_set) * length(d_set) * length(q_set) *
+       length(P_set) * length(D_set) * length(Q_set)
+  results_matrix <- matrix(NA_real_, nrow = n, ncol = 9) 
+  cc <- 1
+
+
+  for (d in d_set) {
+    for (p in p_set) {
+      for (q in q_set) {
+        for (P in P_set) {
+          for (D in D_set) {
+            for (Q in Q_set) {
+              model <- Arima(ts_obj,
+                             order   = c(p, d, q),
+                             seasonal = list(order = c(P, D, Q), period = s),
+                              method = "ML",             
+          transform.pars = TRUE )
+              SARIMA_fit[[cc]] <- model
+              results_matrix[cc, ] <- c(p, d, q, P, D, Q, model$aic, model$bic, model$aicc)
+              cc <- cc + 1
+            }
+          }
+        }
+      }
+    }
+  }
+
+  results_df <- as.data.frame(results_matrix)
+  colnames(results_df) <- c("p","d","q","P","D","Q","AIC","BIC","AICc")
+  highlight_row <- which.min(results_df$AIC)
+
+  cap <- if (!is.null(caption_prefix) && nzchar(caption_prefix)) {
+    sprintf("%s : %s", caption_prefix, caption_suffix)
+  } else {
+    caption_suffix
+  }
+
+  result_table1 <-knitr::kable(results_df, align = 'c', caption = cap) %>%
+  kableExtra::kable_styling(full_width = FALSE, position = "center") %>%
+  kableExtra::row_spec(highlight_row, bold = TRUE, background = "#FFFF99")
+  
+
+ list(
+    table = result_table1,
+    best_model = SARIMA_fit[[highlight_row]],
+    best_row = results_df[highlight_row, , drop = FALSE]
+  )
+  
+
+}
+
+
+
+
+```
+
+
+
+
+::: panel-tabset 
+
+### Trade import South korea vs USA  
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+fit_import <- sarima_grid(
+  ts_obj = import_ts,
+  p_set = c(0,1), d_set = c(1), q_set = c(0,1,2),
+  P_set = c(0,1), D_set = c(1), Q_set = c(0,1), s = 12,
+  caption_prefix = "Trade import South korea vs USA "
+)
+fit_import$table
+print(fit_import$best_model)
+```
+
+Model : SARIMA(0,1,2)(0,1,1)[12]
+
+$$
+Equation:\; (1 - B)(1 - B^{12})x_t = (1 - 0.5291B + 0.1363B^2)(1 - 0.9351B^{12})w_t
+$$
+
+
+###  Trade export South korea vs USA  
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+fit_export<- sarima_grid(
+  ts_obj = export_ts,
+  p_set = c(0), d_set = c(0,1), q_set = c(0,1,2,3),
+  P_set = c(0), D_set = c(0,1), Q_set = c(0,1), s = 12,
+  caption_prefix = " Trade export South korea vs USA  "
+)
+fit_export$table
+print(fit_export$best_model)
+```
+
+Model : SARIMA(0,1,1)(0,1,1)[12] 
+
+$$
+Equation:\; (1 - B)(1 - B^{12})x_t = (1 - 0.5536B)(1 - 0.8441B^{12})w_t
+$$
+
+
+### Seoul housing property index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+fit_housing <- sarima_grid(
+  ts_obj = house_ts,
+  p_set = c(0,1), d_set = c(1), q_set = c(0,1,2),
+  P_set = c(0,1), D_set = c(1), Q_set = c(0,1,2), s = 12,
+  caption_prefix = "seoul housing property index"
+)
+fit_housing$table
+print(fit_housing$best_model)
+
+```
+
+Model : SARIMA(1,1,2)(0,1,1)[12]
+
+$$
+Equation:\; (1 - 0.7799B)(1 - B)(1 - B^{12})x_t = (1 + 0.2868B + 0.1734B^2)(1 - 0.9998B^{12})w_t
+$$
+
+
+:::
+
+
+# Model diagnostics
+
+
+::: panel-tabset
+
+
+### South korea base rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+bok_model<- capture.output(sarima(bok_ts, 0,1,1))
+
+```
+
+###  Federal Reserve rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+usr_model<- capture.output(sarima(usr_ts, 1, 1, 0))
+
+```
+
+### KRW/USD FX rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+kr_model<- capture.output(sarima(kr_ts, 1,0,1))
+
+```
+
+### trade import South Korea vs USA
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+import_model<- capture.output(sarima(import_ts, 0,1,2,0,1,1,12))
+
+```
+
+### trade export South Korea vs USA
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+export_model<- capture.output(sarima(export_ts, 0,1,1,0,1,1,12))
+
+```
+
+### USA & South korea yield spread rate(3y)
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+yield_3y_model<- capture.output(sarima(yield_3y_ts, 0, 1, 1))
+```
+
+### USA & South korea yield spread rate(10y)
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+yield_10y_model<- capture.output(sarima(yield_10y_ts, 1, 0, 1))
+
+```
+
+### seoul housing property index
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+house_model<- capture.output(sarima(house_ts, 1, 1, 2,0,1,1,12))
+
+```
+
+### USD index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+usd_model<- capture.output(sarima(usd_log, 1, 0,0))
+
+```
+
+### KOSPI index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+kospi_model<- capture.output(sarima(kospi_log, 0,1,2))
+
+```
+
+
+### S&P500 index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+sp_model<- capture.output(sarima(sp_log, 0,1, 1))
+
+```
+
+:::
+
+
+
+
+# AUTO.ARIMA
+
+
+::: panel-tabset
+
+
+### South korea base rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+auto.arima(bok_ts)
+
+```
+
+###  Federal Reserve rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+auto.arima(usr_ts)
+
+```
+
+### KRW/USD FX rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+auto.arima(kr_ts)
+
+```
+
+### trade import South Korea vs USA
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+auto.arima(import_ts)
+
+```
+
+### trade export South Korea vs USA
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+auto.arima(export_ts)
+
+```
+
+### USA & South korea yield spread rate(3y)
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+auto.arima(yield_3y_ts)
+
+```
+
+### USA & South korea yield spread rate(10y)
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+auto.arima(yield_10y_ts)
+
+```
+
+### seoul housing property index
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+auto.arima(house_ts)
+
+```
+
+### USD index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+auto.arima(usd_log)
+
+```
+
+### KOSPI index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+auto.arima(kospi_log)
+
+```
+
+
+### S&P500 index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+auto.arima(sp_log)
+
+```
+
+:::
+
+
+# Forecasting
+
+::: panel-tabset
+
+
+### South korea base rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+bok_fit <- Arima(bok_ts, order = c(0,1,1))
+bok_forecast_result <- forecast(bok_fit, h = 20)
+autoplot(bok_forecast_result) +
+  labs(title = "ARIMA(0,1,1) Forecast",
+       x = "Time",
+       y = "Predicted Values") +
+  theme_minimal()
+```
+
+
+
+
+###  Federal Reserve rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+usr_fit <- Arima(usr_ts, order = c(1,1,0))
+usr_forecast_result <- forecast(usr_fit, h = 20)
+autoplot(usr_forecast_result) +
+  labs(title = "ARIMA(1,1,0) Forecast",
+       x = "Time",
+       y = "Predicted Values") +
+  theme_minimal()
+
+```
+
+### KRW/USD FX rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+kr_fit <- Arima(kr_ts, order = c(1,0,1))
+kr_forecast_result <- forecast(kr_fit, h = 1008)
+autoplot(kr_forecast_result) +
+  labs(title = "ARIMA(1,0,1) Forecast",
+       x = "Time",
+       y = "Predicted Values") +
+  theme_minimal()
+```
+
+### trade import South Korea vs USA
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+import_fit <- Arima(import_ts, order = c(0,1,2), seasonal = list(order = c(0,1,1), period = 12))
+import_forecast_result <- forecast(import_fit, h = 36,level = c(80, 95))
+autoplot(import_forecast_result,PI= TRUE) +
+  labs(title = " SARIMA(0,1,2)(0,1,1)[12] Forecast",
+       x = "Time",
+       y = "Predicted Values") +
+  theme_minimal()
+
+```
+
+### trade export South Korea vs USA
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+export_fit <- Arima(export_ts, order = c(0,1,1), seasonal = list(order = c(0,1,1), period = 12))
+export_forecast_result <- forecast(export_fit, h = 36,level = c(80, 95))
+autoplot(export_forecast_result,PI= TRUE) +
+  labs(title = "Trade export: SARIMA(0,1,1)(0,1,1) Forecast",
+       x = "Time",
+       y = "Predicted Values") +
+  theme_minimal()
+```
+
+### USA & South korea yield spread rate(3y)
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+yield_3y_fit <- Arima(yield_3y_ts, order = c(0,1,1))
+yield_3y_forecast_result <- forecast(yield_3y_fit, h = 1008)
+autoplot(yield_3y_forecast_result) +
+  labs(title = "ARIMA(0,1,1) Forecast",
+       x = "Time",
+       y = "Predicted Values") +
+  theme_minimal()
+```
+
+### USA & South korea yield spread rate(10y)
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+yield_10y_fit <- Arima(yield_10y_ts, order = c(1,0,1))
+yield_10y_forecast_result <- forecast(yield_10y_fit, h = 1008)
+autoplot(yield_10y_forecast_result) +
+  labs(title = "ARIMA(1,0,1) Forecast",
+       x = "Time",
+       y = "Predicted Values") +
+  theme_minimal()
+```
+
+### seoul housing property index
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+house_fit <- Arima(house_ts, order = c(1,1,2), seasonal = list(order = c(0,1,1), period = 12))
+house_forecast_result <- forecast(house_fit, h = 36,level = c(80, 95))
+autoplot(house_forecast_result,PI= TRUE) +
+  labs(title = "SARIMA(1,1,2)(0,1,1)[12] Forecast",
+       x = "Time",
+       y = "Predicted Values") +
+  theme_minimal()
+
+```
+
+
+
+### USD index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+usd_fit <- Arima(usd_log, order = c(1,0,0))
+usd_forecast_result_usd <- forecast(usd_fit, h = 1008)
+
+autoplot(usd_forecast_result_usd) +
+  labs(title = "ARIMA(1,0,0) Forecast",
+       x = "Time",
+       y = "Predicted Values") +
+  theme_minimal() 
+
+```
+
+### KOSPI index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+kospi_fit <- Arima(kospi_log, order = c(0,1,2))
+kospi_forecast_result <- forecast(kospi_fit, h = 756)
+autoplot(kospi_forecast_result) +
+  labs(title = "ARIMA(0,1,2) Forecast",
+       x = "Time",
+       y = "Predicted Values") +
+  theme_minimal()
+
+```
+
+
+### S&P500 index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+sp_fit <- Arima(sp_log, order = c(1,0,1))
+sp_forecast_result <- forecast(sp_fit, h = 1008)
+autoplot(sp_forecast_result) +
+  labs(title = "ARIMA(1,0,1) Forecast",
+       x = "Time",
+       y = "Predicted Values") +
+  theme_minimal()
+
+```
+
+:::
+
+
+
+# Benchmark 
+
+### plot utility function
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+plot_util <- function(forecast_result, ts, h, fit) {
+  #print(accuracy(forecast_result))  
+  autoplot(ts) +
+    autolayer(meanf(ts, h = h), series = "Mean", PI = FALSE) +
+    autolayer(naive(ts, h = h), series = "Naïve", PI = FALSE) +
+    autolayer(snaive(ts, h = h), series = "SNaïve", PI = FALSE) +
+    autolayer(rwf(ts, drift = TRUE, h = h), series = "Drift", PI = FALSE) +
+    autolayer(forecast(fit, h = h), series = "Fit", PI = FALSE) +
+    xlab("Date") + 
+    ylab("Predicted Values") +
+    guides(colour = guide_legend(title = "Forecast Methods")) +
+    theme_minimal()
+}
+```
+
+
+::: panel-tabset
+
+
+
+### South korea base rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+bok_tsibble<-as_tsibble(bok_ts)
+fit_bok <- bok_tsibble%>%
+  model(
+    Mean  = MEAN(value),
+    Naive = NAIVE(value),
+    SNaive = SNAIVE(value),
+    Drift = RW(value ~ drift()),
+    ARIMA_model = ARIMA(value ~ pdq(0,1,1))  
+  )
+
+bok_forecast <- forecast(fit_bok, h = 20)
+
+
+autoplot(bok_forecast, bok_tsibble) +
+  labs(x = "Quarter", y = "Predicted Values", colour = "Forecast Methods") +
+    guides(colour = "none", linetype = "none") +  
+  theme_minimal()
+
+```
+
+
+
+
+
+
+###  Federal Reserve rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+usr_tsibble<-as_tsibble(usr_ts)
+fit_usr <- usr_tsibble%>%
+  model(
+    Mean  = MEAN(value),
+    Naive = NAIVE(value),
+    SNaive = SNAIVE(value),
+    Drift = RW(value ~ drift()),
+    ARIMA_model = ARIMA(value ~ pdq(1,1,0))  
+  )
+
+usr_forecast <- forecast(fit_usr, h = 20)
+
+
+autoplot(usr_forecast, usr_tsibble) +
+  labs(x = "Quarter", y = "Predicted Values", colour = "Forecast Methods") +
+    guides(colour = "none", linetype = "none") +  
+  theme_minimal()
+
+
+```
+
+### KRW/USD FX rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+plot_util(kr_forecast_result, kr_ts, 756, kr_fit)
+```
+
+### trade import South Korea vs USA
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+import_tsibble<-as_tsibble(import_ts)
+fit_import <- import_tsibble%>%
+  model(
+    Mean  = MEAN(value),
+    Naive = NAIVE(value),
+    SNaive = SNAIVE(value),
+    Drift = RW(value ~ drift()),
+    ARIMA_model = ARIMA(
+      value ~ pdq(0,1,2) + PDQ(0,1,1, period = 12) + drift())  
+  )
+
+import_forecast <- forecast(fit_import, h = 36)
+
+
+autoplot(import_forecast, import_tsibble) +
+  labs(x = "Quarter", y = "Predicted Values", colour = "Forecast Methods") +
+    guides(colour = "none", linetype = "none") +  
+  theme_minimal()
+
+```
+
+### trade export South Korea vs USA
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+export_tsibble<-as_tsibble(export_ts)
+fit_export <- export_tsibble%>%
+  model(
+    Mean  = MEAN(value),
+    Naive = NAIVE(value),
+    SNaive = SNAIVE(value),
+    Drift = RW(value ~ drift()),
+    ARIMA_model = ARIMA(
+      value ~ pdq(0,1,1) + PDQ(0,1,1, period = 12) + drift())  
+  )
+
+export_forecast <- forecast(fit_export, h = 36)
+
+
+autoplot(export_forecast, export_tsibble) +
+  labs(x = "Quarter", y = "Predicted Values", colour = "Forecast Methods") +
+    guides(colour = "none", linetype = "none") +  
+  theme_minimal()
+```
+
+### USA & South korea yield spread rate(3y)
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+plot_util(yield_3y_forecast_result,yield_3y_ts,756, yield_3y_fit)
+```
+
+### USA & South korea yield spread rate(10y)
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+plot_util(yield_10y_forecast_result,yield_10y_ts,756, yield_10y_fit)
+```
+
+### seoul housing property index
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+house_tsibble<-as_tsibble(house_ts)
+fit_house <- house_tsibble%>%
+  model(
+    Mean  = MEAN(value),
+    Naive = NAIVE(value),
+    SNaive = SNAIVE(value),
+    Drift = RW(value ~ drift()),
+    ARIMA_model = ARIMA(
+      value ~ pdq(1,1,2) + PDQ(0,1,1, period = 12) + drift())  
+  )
+
+house_forecast <- forecast(fit_house, h = 36)
+
+
+autoplot(house_forecast, house_tsibble) +
+  labs(x = "Quarter", y = "Predicted Values", colour = "Forecast Methods") +
+    guides(colour = "none", linetype = "none") +  
+  theme_minimal()
+```
+
+
+
+### USD index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+plot_util(usd_forecast_result_usd, usd_log, 756, usd_fit)
+```
+
+### KOSPI index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+plot_util(kospi_forecast_result,kospi_log, 756, kospi_fit)
+```
+
+
+### S&P500 index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+plot_util(sp_forecast_result,sp_log, 756, sp_fit)
+
+```
+
+:::
+

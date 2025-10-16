@@ -1,0 +1,1724 @@
+---
+title: "EDA"
+format: html
+---
+### packages used
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+library(feasts) 
+library(tsibble)
+library(tidyverse)
+library(lubridate)
+library(zoo)       
+library(forecast)   
+library(tseries)   
+library(patchwork) 
+library(here)
+library(plotly)
+library(xts)
+library(dplyr)
+library(ggplot2)
+library(ggfortify)
+
+```
+
+# Time series plot
+
+::: panel-tabset
+
+
+### Bank of Korea base rate
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+bok<- read.csv("../data/interest/bok.csv")%>%
+  rename(Date = date)
+bok$Date<- as.Date(bok$Date)
+bok <- bok %>%
+  mutate(Date = floor_date(Date, unit = "quarter")) %>%
+  group_by(Date) %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE)), .groups = "drop")
+
+
+ggplot(bok, aes(x = Date, y = base_rate)) +
+  geom_line(color = "skyblue") +
+  labs(title = "Bank of Korea base rate(quarterly) ",
+       x = "Date", y = "Rate (%)") +
+  theme_minimal()
+
+```
+
+This time series plot  shows a gentle downward trend from the early 2000s to 2020, then a sharp upswing during the 2021–23 tightening cycle and a recent leveling. There is no seasonality, policy rates don’t just move by considering only the calendar.  Variation is moderate and step-like, reflecting discrete policy decisions rather than continuous noise. There are clear cyclical/periodic fluctuations aligned with business cycles: rapid cuts in 2008–09 and 2020, tightening in mid-2000s and post-COVID.
+
+### Federal Reserve effective rate
+
+```{r,message = F,warning= F}
+#| echo: true
+#| code-fold: true
+
+usr<- read.csv("../data/interest/us_rate.csv")%>%
+  rename(Date = observation_date,rate = DFF)
+usr$Date<- as.Date(usr$Date)
+
+usr<- usr %>%
+  mutate(Date = floor_date(Date, unit = "quarter")) %>%
+  group_by(Date) %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE)), .groups = "drop")
+
+ggplot(usr, aes(x = Date, y = rate)) +
+  geom_line(color = "orange") +
+  labs(title = "Federal reserve effective rate(quarterly) ",
+       x = "Date", y = "Rate (%)") +
+  theme_minimal()
+```
+
+
+Plot shows tightening and easing cycles: high in the early 2000s, pinned near zero in 2009–15 and 2020–21, then rapid hikes from 2022. There is no seasonality,since policy rates affected by various economical reasons, seasonal factors are less important when considering policy rates. The long stretches at the zero lower bound and the subsequent aggressive normalization highlight the interaction of inflation shocks and recession risk. 
+
+### KRW vs USD exchange rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+kr <- read.csv("../data/fx rate/kor.csv")
+kr <- kr %>%
+  transmute(
+    Date = as.Date(observation_date),
+    krw  = DEXKOUS,    
+    usd  = 1 / DEXKOUS  
+  ) %>%
+  filter(!is.na(Date)) %>%
+  arrange(Date) %>%
+  distinct(Date, .keep_all = TRUE) %>%
+  complete(Date = seq(min(Date), max(Date), by = "day")) %>%
+
+  fill(krw, usd, .direction = "down")
+
+
+ggplot(kr, aes(x = Date, y = usd)) +
+  geom_line(color = "gold") +
+  labs(title = "KRW/USD exchange rate ",
+       x = "Date", y = "USD") +
+  theme_minimal()
+
+
+```
+
+
+ The plot displays a long-run trend toward KRW depreciation punctuated by crisis spikes (late-1990s Asian crisis, 2008 GFC, 2020 COVID). Seasonality is not evident. Variation increases when the level is high, and medium-term cycles track global risk and U.S. monetary conditions. However overall it is hard to say for all time frame, there is a high variation(there are exceptional variation in one period). 
+
+
+### USD index 
+
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+usd <- read_csv("../data/fx rate/usd_index.csv", show_col_types = FALSE)
+
+usd <- usd %>%
+  transmute(
+    Date = as.Date(Date),
+    usd_index = Close
+  ) %>%
+  filter(!is.na(Date)) %>%
+  arrange(Date) %>%
+  distinct(Date, .keep_all = TRUE) %>%
+  complete(Date = seq(min(Date), max(Date), by = "day")) %>%
+  fill(usd_index, .direction = "down")
+
+
+ggplot(usd, aes(x = Date, y = usd_index)) +
+  geom_line(color = "darkblue") +
+  labs(title = "USD index ",
+       x = "Date", y = "USD index") +
+  theme_minimal()
+
+```
+
+USD index time series plot shows   slow trend regimes—weakening after the mid-1980s peak, renewed strength around 2015–22—without seasonality; its variation is larger when the index is high; and long cycles reflect relative growth/real-rate differentials and safe-haven demand.
+
+
+
+### seoul real property price index
+
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+housing <- read_csv(here("data/housing/seoul_housing.csv"), skip = 3) %>%
+  select(Date = `TIME_PERIOD:Period`, housing = `OBS_VALUE:Value`)%>%
+  mutate(Date = as.Date(Date))
+
+housing <- housing %>% mutate(Date = as.Date(Date))
+
+
+ggplot(housing, aes(x = Date, y = housing)) +
+  geom_line(color = "salmon2") +
+  labs(title = "Seoul Real Property Price Index ",
+       x = "Date", y = "index ") +
+  theme_minimal()
+
+```
+
+Seoul real property price index plot shows  A clear upward trend dominates, interrupted by corrections around 2008–12 and a sharp 2020–22 surge followed by partial pullback.  seasonality is minimal, variation has grown with price levels. 
+
+
+
+
+###  yield spread for USA & South korea: 10 years -3 years
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+
+us_yield  <- read.csv(here("data/yield", "us_yield.csv"))
+kor_yield   <- read.csv(here("data/yield", "kor_yield.csv"))
+
+
+us_yield$Date  <- as.Date(us_yield$Date)
+kor_yield$Date <- as.Date(kor_yield$Date)
+
+colnames(us_yield)[colnames(us_yield)  == "X3Y"]  <- "US_3Y"
+colnames(us_yield)[colnames(us_yield)  == "X10Y"] <- "US_10Y"
+colnames(kor_yield)[colnames(kor_yield) == "X3Y"]  <- "KR_3Y"
+colnames(kor_yield)[colnames(kor_yield) == "X10Y"] <- "KR_10Y"
+
+us_yield  <- us_yield[,  c("Date", "US_3Y", "US_10Y")]
+kor_yield <- kor_yield[, c("Date", "KR_3Y", "KR_10Y")]
+
+us_yield  <- us_yield  %>% arrange(Date) %>% fill(US_3Y, US_10Y, .direction = "down")
+kor_yield <- kor_yield %>% arrange(Date) %>% fill(KR_3Y, KR_10Y, .direction = "down")
+
+
+df <- merge(us_yield, kor_yield, by = "Date")
+
+df$US_3m10  <- df$US_3Y - df$US_10Y
+df$KR_3m10  <- df$KR_3Y - df$KR_10Y
+df$US_KR_3Y <- df$US_3Y - df$KR_3Y
+df$US_KR_10Y<- df$US_10Y - df$KR_10Y
+
+fig <- plot_ly(df, x = ~Date) |>
+  add_lines(y = ~US_KR_3Y, name = "US−KR (3Y)") |>
+  add_lines(y = ~US_KR_10Y, name = "US−KR (10Y)") |>
+  layout(title = "Yield Spreads: Term (3Y−10Y) and Cross-country (US−KR)",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "Spread (pp)"))
+fig
+
+```
+
+
+yield spreads plot oscillate around zero with repeated cycles—notably inversions near recessions—show no seasonality, and maintain relatively stable variation in percentage points rather than scaling with level; taken together, they act as timely signals of policy divergence and cycle turns.
+
+
+
+### us-korea import and exports
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+imports <- read_csv(here::here("data/trade", "imports.csv"))
+exports <- read_csv(here::here("data/trade", "exports.csv"))
+
+clean_date <- function(x) {
+  as.Date(paste0(sub("^([0-9]{4})([0-9]{2})$", "\\1-\\2", gsub("/", "-", as.character(x))), "-01"))
+}
+
+imports <- imports %>%
+  mutate(Date = clean_date(Date),
+         Type = "Imports")
+
+exports <- exports %>%
+  mutate(Date = clean_date(Date),
+         Type = "Exports")
+trade <- bind_rows(imports, exports)
+
+names(trade)[2] <- "Value"
+
+trade_ts <- trade %>%
+  as_tsibble(index = Date, key = Type)
+
+autoplot(trade_ts, Value) +
+  labs(title = "Monthly Imports and Exports: South korea vs USA",
+       x = "Date", y = "Trade Value") +
+  theme_minimal()
+
+```
+
+Both import and export time series plots shows strong secular trend as trade deepens. For seasonality, it is likely to exists, in terms of year frame there is up-down; this means in terms of monthly there is possibility for seasonality. This which might due to production of goods, shipping calendars.  variation widens as volumes grow; and cyclical dips coincide with global shocks (2008–09, 2020). 
+
+### S&P500 index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+sp500 <- read_csv("../data/stock/sp500.csv")
+
+ggplot(sp500, aes(x = Date, y = Close)) +
+  geom_line(color = "red") +
+  labs(title = "S&P 500 index ",
+       x = "Date", y = "S&P 500 index ") +
+  theme_minimal()
+```
+
+This plot features a steep long-run trend higher with pronounced cyclical bear markets (2000–02, 2008–09, 2020); there is no seasonality; variation increases alongside the level, producing larger rallies and drawdowns over time. 
+
+### KOSPI index
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+kospi <- read_csv("../data/stock/kospi.csv")
+kospi$Date <- as.Date(kospi$Date)
+ggplot(kospi, aes(x = Date, y = Close)) +
+  geom_line(color = "darkslategray2") +
+  labs(title = "KOSPI index",
+       x = "Date", y = "kospi index") +
+  theme_minimal()
+```
+
+KOSPI time series plot shows upward trend with long plateaus and sharp cyclical swings around crises is evident. seasonality is hard to observe and variation grows with the index level, compare with S&P500, it has larger variation.
+
+:::
+
+From the time-series plots, the S&P 500, KOSPI, and USD index appear multiplicative: while seasonality is hard to detect, their variation increases with the level (larger absolute swings when the series is high), and the dominant movements are multi-year cyclical regimes tied to macro conditions rather than calendar patterns. So for these variables will be log transformed. 
+
+
+
+# Lag plots
+
+::: panel-tabset
+
+
+### South korea base rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+bok_ts <- ts(bok$base_rate, start = c(year(min(bok$Date)), month(min(bok$Date))), end = c(year(max(bok$Date)), month(max(bok$Date))),frequency = 4)
+gglagplot(bok_ts, do.lines=FALSE) +
+  xlab("Lags") + ylab("Rate (%)") +
+  ggtitle("Lag Plots — Bank of Korea Base Rate") +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) + theme_bw()
+```
+
+There is clear diagonal and tight clustering at lags 1–3 (strong positive autocorrelation). From about lag 4 onward the points spread and the diagonal weakens, having weak  autocorrelation.
+
+
+### Federal Reserve rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+usr_ts <- ts(usr$rate, start = c(year(min(usr$Date)), month(min(usr$Date))), end = c(year(max(usr$Date)), month(max(usr$Date))),frequency=4)
+
+gglagplot(usr_ts, do.lines=FALSE) +
+  xlab("Lags") + ylab("Rate (%)") +
+  ggtitle("Lag Plots — U.S. Federal Funds Rate") 
+
+
+```
+
+ There is strong diagonal at short lags, with values clustering at a few levels. After ~lag 4–5 the diagonal fades and scatter increases weaker, which in further lag, it seems that it has no autocorrelation.
+
+### KRW/USD FX rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+kr_ts<- ts(kr$usd, frequency = 252, start = c(year(min(kr$Date)), month(min(kr$Date))), end = c(year(max(kr$Date)), month(max(kr$Date))))
+gglagplot(kr_ts, do.lines=FALSE) +
+  ggtitle("Lag Plots — KRW/USD FX rate")+
+          xlab("Lags")+ylab("KRW/USD FX rate")
+
+```
+
+There is  tight diagonal in every panel across all lags which means very high persistent autocorrelation for all lags.
+
+### trade import South korea vs USA
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+import_ts<- ts(imports$USD, frequency = 12, start = c(year(min(imports$Date)), month(min(imports$Date))), end = c(year(max(imports$Date)), month(max(imports$Date))))
+gglagplot(import_ts, do.lines=FALSE) +
+    ggtitle("Lag Plots — trade import South korea vs USA")+
+          xlab("Lags")+ylab("Trade import value")
+```
+
+There is Pronounced diagonal through short–mid lags . At longer lags the diagonal remains but is wider which means positive but weakening autocorrelation.
+
+
+### trade export South korea vs USA
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+export_ts<- ts(exports$USD, frequency = 12, start = c(year(min(exports$Date)), month(min(exports$Date))), end = c(year(max(exports$Date)), month(max(exports$Date))))
+gglagplot(export_ts, do.lines=FALSE) +
+ ggtitle("Lag Plots — trade export South korea vs USA")+
+          xlab("Lags")+ylab("Trade export value")
+```
+
+There is Pronounced diagonal through short–mid lags . At longer lags the diagonal remains but is wider which means positive but weakening autocorrelation. It seems export has stronger autocorrelation than import for all plots.
+
+### USA & South korea yield spread rate(3y)
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+yield_3y_ts<- ts(df$US_KR_3Y, frequency = 252, start = c(year(min(df$Date)), month(min(df$Date))), end = c(year(max(df$Date)), month(max(df$Date))))
+gglagplot(yield_3y_ts, do.lines=FALSE) +
+  ggtitle("Lag Plots — USA & South korea yield spread rate(3y)")+
+          xlab("Lags")+ylab("yield % ")
+
+
+```
+
+There is high autocorrelation across lags, with slightly more dispersion than the 10-year series.
+
+### USA & South korea yield spread rate(10y)
+
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+yield_10y_ts<- ts(df$US_KR_10Y, frequency = 252, start = c(year(min(df$Date)), month(min(df$Date))), end = c(year(max(df$Date)), month(max(df$Date))))
+gglagplot(yield_10y_ts, do.lines=FALSE) +
+  ggtitle("Lag Plots — USA & South korea yield spread rate(10y)")+
+          xlab("Lags")+ylab("yield % ")
+
+
+```
+
+Diagonal stays crisp across nearly all lags which has strong and long-horizon autocorrelation.
+
+### seoul housing property index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+#house_ts<- ts(housing$housing, frequency = 12, start = c(year(min(housing$Date))))
+house_ts<- ts(housing$housing, frequency = 12, start = c(year(min(housing$Date)), month(min(housing$Date))), end = c(year(max(housing$Date)), month(max(housing$Date))))
+gglagplot(house_ts, do.lines=FALSE) +
+    ggtitle("Lag Plots — seoul housing property index")+
+          xlab("Lags")+ylab("Seoul House index") +
+          theme(axis.text.x=element_text(angle=45, hjust=1))
+```
+
+There is strong near-linear relationship at every lag; slight curvature at higher lags. 
+
+### USD index
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+usd_ts_log <- ts(log(usd$usd_index), start = c(year(min(usd$Date)), month(min(usd$Date))), end = c(year(max(usd$Date)), month(max(usd$Date))), frequency = 252)
+#usd_ts_log <- ts(log(usd$usd_index), start=min(usd$Date), frequency=252)
+
+gglagplot(usd_ts_log, do.lines=FALSE) +
+  ggtitle("Lag Plots — USD index (log)")+
+          xlab("Lags")+ylab("USD index") +
+          theme(axis.text.x=element_text(angle=45, hjust=1))
+```
+
+There is  tight diagonal in every panel across all lags which means very high persistent autocorrelation for all lags.
+
+
+### KOSPI index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+kospi_ts_log <- ts(log(kospi$Close), start = c(year(min(kospi$Date)), month(min(kospi$Date))), end = c(year(max(kospi$Date)), month(max(kospi$Date))), frequency = 252)
+
+gglagplot(kospi_ts_log, do.lines=FALSE) +
+  xlab("Lags") + ylab("log(Price)") +
+  ggtitle("Lag Plots — KOSPI (log)") 
+
+```
+
+While there are some point that are off the line, but in general it is tight diagonal in every panel across all lags which means very high persistent autocorrelation for all lags.
+
+### S&P 500 index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+sp_ts_log <- ts(log(sp500$Close), start = c(year(min(sp500$Date)), month(min(sp500$Date))), end = c(year(max(sp500$Date)), month(max(sp500$Date))), frequency = 252)
+                                              
+gglagplot(sp_ts_log, do.lines=FALSE) +
+  xlab("Lags") + ylab("log(Price)") +
+  ggtitle("Lag Plots — S&P 500 (log)") +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) + theme_bw()
+
+```
+
+There is  tight diagonal in every panel across all lags which means very high persistent autocorrelation for all lags.
+
+:::
+
+
+# Decomposition 
+
+::: panel-tabset
+
+
+### South korea base rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+bok_stl <- stl(bok_ts, s.window = "periodic", robust = TRUE)
+autoplot(bok_stl) +
+  labs(title = "STL Decomposition — BOK Base Rate (Additive)",
+       x = "Date", y = "Rate (%)") +
+  theme_minimal()
+```
+
+The decomposition is dominated by a smooth trend that drifts down from the mid-2000s into 2019–21, then inflects upward as policy tightens post-pandemic. The seasonal component is very small and roughly constant through time—its amplitude doesn’t expand when the level is higher—so it reads like a nuisance wiggle rather than a percentage effect. The remainder captures a few localized shocks (notably around 2009 and 2023) with variance that doesn’t scale with the policy level. Those cues point to an additive specification in levels.
+
+
+###  Federal Reserve rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+usr_stl <- stl(usr_ts, s.window = "periodic", robust = TRUE)
+autoplot(usr_stl) +
+  labs(title = "STL Decomposition — US Fed Funds (Additive)",
+       x = "Date", y = "Rate (%)") +
+  theme_minimal()
+```
+
+The trend captures long tightening/easing cycles: near-zero from 2009–2015, hiking into 2019, a pandemic reset in 2020, and the rapid 2022–2023 liftoff. Seasonality is negligible and does not grow with the level—typical of policy rates that move in discrete steps rather than proportional swings. The remainder is episodic (crisis windows) but its magnitude is broadly stable in absolute terms. That pattern supports an additive decomposition.
+
+### KRW/USD FX rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+decompose_kr_ts<- decompose(kr_ts)
+autoplot(decompose_kr_ts,main = "decomposition: KRW/USD FX rate")
+
+
+```
+
+The trend reflects multi-year won weakness/strength cycles, with standout moves in 2008–09 and again around 2022. Seasonality is mild and appears roughly constant in absolute size; it doesn’t fan out as the level drifts, so an additive form is better option. 
+
+### trade import South Korea vs USA
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+decompose_import_ts<- decompose(import_ts)
+autoplot(decompose_import_ts,main = "decomposition: trade import South Korea vs USA")
+
+decompose_import_ts1<- decompose(export_ts,"multiplicative")
+autoplot(decompose_import_ts1,main = "decomposition: trade import South Korea vs USA(multiplicative)")
+
+```
+
+The trend shows a secular rise with cyclical dents (late 1990s, GFC, 2020) consistent with globalization and demand cycles. In levels, the seasonal pattern clearly widens over time and the remainder becomes more volatile as the series grows—classic heteroskedasticity that violates additive assumptions. On a multiplicative  scale, seasonality becomes approximately constant in percentage terms, and the remainder tightens around zero. This yields a cleaner, more interpretable decomposition for strictly positive, growing trade flows.
+
+
+### trade export South Korea vs USA
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+decompose_export_ts<- decompose(export_ts)
+autoplot(decompose_export_ts,main = "decomposition: trade export South Korea vs USA(additive)")
+
+decompose_export_ts1<- decompose(export_ts,"multiplicative")
+autoplot(decompose_export_ts1,main = "decomposition: trade export South Korea vs USA(multiplicative)")
+
+```
+
+Exports exhibit a strong upward trend with cyclical pauses and a noticeable surge post-2016 before cooling. The additive view shows seasonality and residual variance that expand alongside the level, indicating proportional—not absolute—effects. Switching to multiplicative  stabilizes both, turning the seasonal shape into a near-constant proportion of the level and shrinking the remainder to a level-invariant band. That makes inference about turning points in the trend more reliable.
+
+
+### USA & South korea yield spread rate(3y)
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+decompose_3y_ts<- decompose(yield_3y_ts)
+autoplot(decompose_3y_ts,main = "decomposition: USA & South korea yield spread rate(3y)")
+```
+
+The trend meanders from negative values in the early 2000s toward positive territory around the late 2010s before sliding again, mirroring cross-country policy cycles and term-structure dynamics. Because the series crosses zero and can be negative, multiplicative models are not meaningful here. The seasonal component is modest and stable; the remainder features short bursts of volatility (pandemic, 2023) that don’t scale with the spread’s absolute level. An additive decomposition is therefore appropriate.
+
+### USA & South korea yield spread rate(10y)
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+decompose_10y_ts<- decompose(yield_10y_ts)
+autoplot(decompose_10y_ts,main =  "decomposition: USA & South korea yield spread rate(10y)")
+```
+
+There is upward trend through the mid-2010s gives way to a more pronounced decline after 2021, highlighting shifts in long-run rate differentials. As with the 3-year, the spread can be near or below zero, which rules out multiplicative forms. Seasonality is small, and the remainder shows occasional spikes that are fairly constant in absolute magnitude. The overall structure fits best with an additive model.
+
+### seoul housing property index
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+decompose_housing_ts<- decompose(house_ts)
+autoplot(decompose_housing_ts,main = "decomposition: Seoul housing property index" )
+```
+
+The trend rises steadily, quickening around 2019–2021 before easing, while the seasonal component stays roughly the same amplitude across the sample, not widening as the index level increases. That constancy in absolute seasonal size argues for an additive form rather than multiplicative. The remainder shows episodic bumps—policy moves and sentiment shifts—but its variance doesn’t systematically scale with the level, so an additive decomposition cleanly separates the smooth trend
+
+### USD index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+decompose_usd_ts<- decompose(usd_ts_log)
+autoplot(decompose_usd_ts, main= "decomposition: USD index")
+
+```
+
+The trend captures well-known dollar cycles (strong mid-1980s, mid-2010s; softer interludes) while the seasonal component is persistent but proportionate to the level. In raw levels, the remainder tends to be larger when the index is higher; logging or using a multiplicative form evens that out. Decomposing multiplicatively yields cleaner inference: seasonality as a percent swing and a remainder that is closer to level-invariant.
+
+### KOSPI index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+decompose_kospi_ts<- decompose(kospi_ts_log)
+autoplot(decompose_kospi_ts,main = "decomposition: KOSPI index")
+```
+
+The trend reflects a secular climb punctuated by sharp drawdowns (GFC, COVID, 2022–23). Equity markets exhibit volatility clustering and proportional variation: the seasonal and remainder amplitudes grow as the level rises. On logs (or multiplicatively), the seasonal share becomes roughly constant and the residual shocks are better behaved. This improves signal extraction around turning points and reduces spurious variance in the remainder.
+
+### S&P500 index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+decompose_sp_ts<- decompose(sp_ts_log)
+autoplot(decompose_sp_ts,main = "decomposition: S&P500 index" )
+```
+
+A strong upward trend dominates, with pauses and breaks around 2000–02, 2008–09, and 2020 before resuming higher. Seasonality is small but inherently proportional in equity prices, and the remainder is much noisier in bull markets when viewed in levels. A multiplicative/log-additive decomposition stabilizes variance, rendering seasonality as a constant percentage and isolating shocks without level-driven inflation of the residual. This specification typically produces the most interpretable components for stock indices.
+
+:::
+
+
+
+# ACF & PACF plot
+
+::: panel-tabset
+
+### South korea base rate
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+ggAcf(bok_ts) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "ACF of South Korea base rate") +
+  theme_bw()
+
+ggPacf(bok_ts) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "PACF of South Korea base rate") +
+  theme_bw()
+```
+
+The ACF shows a very slow, gradual decay with high correlations extending well beyond lag 20, remaining above 0.25 throughout. The PACF shows a single strong spike at lag 1 of approximately 0.95, then cuts off sharply afterward with all subsequent lags staying within the confidence bounds. This is a classic signature of a highly persistent autoregressive process.
+This series is clearly non-stationary. The slow decay in the ACF is a classic signature of a unit root or near-unit root process. The PACF pattern suggests an AR(1) process with a coefficient very close to 1, indicating a random walk or highly persistent process. This makes economic sense as central banks adjust interest rates gradually rather than making abrupt changes. First differencing would be needed to achieve stationarity
+
+
+
+### Federal Reserve Rate 
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+ggAcf(usr_ts) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "ACF of Federal Reserve Rate ") +
+  theme_bw()
+
+ggPacf(usr_ts) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "PACF of Federal Reserve Rate ") +
+  theme_bw()
+```
+
+The ACF shows slow decay similar to the South Korea rate, though slightly faster, with correlations gradually declining but remaining substantial even at longer lags. The PACF shows a dominant spike at lag 1 of approximately 0.95, with subsequent lags mostly within bounds, though there are some minor scattered exceedances at longer lags.
+This series is also non-stationary with similar characteristics to the South Korea rate. The persistent autocorrelation indicates the series has memory and trends, which aligns with how the Federal Reserve conducts monetary policy through gradual adjustments. The slow decay pattern confirms that the series doesn't revert to a mean quickly. Differencing is required for stationarity before any modeling can proceed.
+
+
+
+### KRW/USD FX rate
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+ggAcf(kr_ts,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "ACF of KRW/USD FX rate") +
+  theme_bw()
+
+ggPacf(kr_ts,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "PACF of  KRW/USD FX rate") +
+  theme_bw()
+```
+
+The ACF shows extremely strong persistence with correlations near 1.0 extending across all 50+ lags with barely any decay visible. The PACF shows a massive spike at lag 1 of approximately 1.0, followed by an immediate and complete cutoff with all other lags remaining within the confidence bounds. This is perhaps the clearest example of a pure random walk in the dataset.
+This series is strongly non-stationary and represents an almost perfect random walk. The ACF barely decays at all, which is characteristic behavior for exchange rates in floating rate regimes. Exchange rates typically follow random walk processes as they respond to news and changing economic conditions without mean reversion. This series definitely requires first differencing, or preferably a returns transformation, to achieve stationarity.
+
+
+
+### trade import South Korea vs USA
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+ggAcf(import_ts) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "ACF of trade import South Korea vs USA") +
+  theme_bw()
+
+ggPacf(import_ts) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "PACF of trade import South Korea vs USA") +
+  theme_bw()
+```
+
+The ACF shows very high initial values with slow decay, remaining above 0.7 even at lag 24, indicating strong persistence in the series. The PACF shows a very strong spike at lag 1 of approximately 0.95, then a smaller but still significant spike at lag 2, followed by scattered minor spikes at various longer lags within or just outside the confidence bounds.
+This series is non-stationary with strong persistence. The PACF suggests this might be an AR(2) process in differences, or possibly requires seasonal differencing given the trade data nature. Trade flows typically have both trend components and potential seasonal patterns. First differencing is recommended, and you may want to check for seasonal patterns that would require additional seasonal differencing or adjustment.
+
+
+### trade export South Korea vs USA
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+ggAcf(export_ts) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "ACF of trade export South Korea vs USA") +
+  theme_bw()
+
+ggPacf(export_ts) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "PACF of trade export South Korea vs USA") +
+  theme_bw()
+```
+
+The ACF pattern is very similar to the import series, showing slow decay with high persistence and correlations remaining elevated throughout the lag structure. The PACF shows a dominant lag 1 spike of approximately 0.95, a smaller but noticeable lag 2 spike, and then mostly lags within bounds with occasional minor exceedances at longer lags.
+This series is non-stationary with characteristics nearly identical to the import series. This similarity makes economic sense as exports and imports often move together and share common trends related to economic cycles and bilateral trade relationships. First differencing is needed, and like the import series, you should consider checking for seasonal patterns that might require additional treatment beyond simple first differencing.
+
+### USA & South Korea yield spread rate(3Y)
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+ggAcf(yield_3y_ts,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "ACF of USA & South Korea yield spread rate(3Y)") +
+  theme_bw()
+
+ggPacf(yield_3y_ts,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "PACF of USA & South Korea yield spread rate(3Y)") +
+  theme_bw()
+```
+
+The ACF shows extremely high persistence with correlations remaining near 1.0 across all 50 lags, displaying almost no decay whatsoever. The PACF shows a dominant spike at lag 1 of approximately 0.99, followed by a small spike at lag 2, after which all subsequent lags remain within the confidence bounds. This represents one of the most persistent series in the dataset.
+This series is clearly non-stationary and exhibits random walk behavior. The yield spread between the two countries appears to drift over time without any mean reversion, possibly reflecting changing perceptions of relative risk, monetary policy divergence, or capital flow patterns. First differencing is absolutely required before any modeling can be performed on this series.
+
+
+### USA & South Korea yield spread rate(10Y)
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+ggAcf(yield_10y_ts,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "ACF of USA & South Korea yield spread rate(10Y)") +
+  theme_bw()
+
+ggPacf(yield_10y_ts,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "PACF of USA & South Korea yield spread rate(10Y)") +
+  theme_bw()
+```
+
+
+The ACF pattern is nearly identical to the 3Y spread, showing very high persistence across all lags with correlations staying close to 1.0 throughout the entire lag structure. The PACF displays the same structure with a strong lag 1 spike of approximately 0.99, a smaller but noticeable lag 2 spike, and then a sharp cutoff with all remaining lags within bounds.
+This series is strongly non-stationary. Both the 3Y and 10Y spreads show identical non-stationary behavior, which suggests persistent divergences or convergences in the yield curves between the two countries driven by common factors. The similarity between the two maturities suggests they might be cointegrated. This series requires first differencing before it can be used in any time series models.
+
+
+### Seoul housing  property index 
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+ggAcf(house_ts) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "ACF of Seoul housing  property index ") +
+  theme_bw()
+
+ggPacf(house_ts) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "PACF of Seoul housing  property index ") +
+  theme_bw()
+```
+
+The ACF shows a slow, linear decay pattern starting from about 0.98 and gradually declining to approximately 0.55 by lag 24, representing moderately fast decay compared to financial indices. The PACF displays a massive spike at lag 1 of about 0.98, after which all subsequent lags remain comfortably within the confidence bounds with no other significant spikes visible.
+This series is non-stationary as expected for real estate price indices, which typically trend upward over time due to population growth, income increases, and inflation. The decay in the ACF is somewhat faster than pure financial indices, possibly reflecting some degree of mean reversion in housing markets. First differencing is needed before modeling this series, and seasonal adjustment might also be worth considering.
+
+
+### USD index
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+ggAcf(usd_ts_log,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "ACF of USD index") +
+  theme_bw()
+
+ggPacf(usd_ts_log,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "PACF of USD index") +
+  theme_bw()
+```
+
+The ACF shows near-perfect persistence with correlations at 1.0 extending uniformly across all 50+ lags without any visible decay throughout the entire range. The PACF displays an almost perfect spike at lag 1 approaching 1.0, followed by an immediate and complete cutoff to values near zero for all remaining lags. This is perhaps the most extreme example of random walk behavior in the entire dataset.
+This series is extremely non-stationary, exhibiting textbook random walk characteristics. Dollar indices tend to follow this pattern as they drift based on relative monetary policy stances, economic conditions across countries, and international capital flows. The complete lack of mean reversion indicates the dollar's value can move in any direction for extended periods. First differencing or computing log returns is definitely required before any analysis or modeling can proceed.
+
+
+### KOSPI index 
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+ggAcf(kospi_ts_log,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "ACF of KOSPI index") +
+  theme_bw()
+
+ggPacf(kospi_ts_log,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "PACF of KOSPI index") +
+  theme_bw()
+```
+
+The ACF shows extremely high persistence with correlations remaining near 1.0 across all 50 lags without meaningful decay, indicating very strong memory in the series. The PACF displays a dominant lag 1 spike of approximately 0.99 followed by an immediate cutoff, with all subsequent lags staying within the confidence bounds. This is the standard pattern observed for equity price indices worldwide.
+This series is strongly non-stationary, which is typical behavior for stock market indices. Like most equity indices worldwide, KOSPI follows a random walk with long-term upward trends reflecting economic growth and corporate earnings expansion, but no reversion to a fixed mean level. First differencing is required, though using log returns would be even better for financial analysis purposes as they have better statistical properties.
+
+
+### S&P500 index
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+ggAcf(sp_ts_log,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "ACF of S&P500 index") +
+  theme_bw()
+
+ggPacf(sp_ts_log,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "PACF of S&P500 index") +
+  theme_bw()
+```
+
+The ACF pattern is virtually identical to the KOSPI, showing near-perfect persistence with correlations at 1.0 across all lags without any visible decay. The PACF shows the characteristic lag 1 spike of approximately 1.0 with a sharp, immediate cutoff afterward. All remaining lags stay comfortably within the confidence bounds, confirming the unit root structure typical of equity indices.
+This series is strongly non-stationary and exhibits classic random walk behavior identical to the KOSPI. This similarity confirms that equity indices worldwide share common stochastic properties regardless of the specific market or country, reflecting the general nature of stock prices. First differencing or log returns are required before any modeling, with log returns being strongly preferred for financial applications due to their better distributional properties and interpretation as continuously compounded returns.
+
+
+
+:::
+
+
+# Augmented Dickey-Fuller Test
+
+::: panel-tabset
+
+
+### South korea base rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(bok_ts)
+```
+
+
+###  Federal Reserve rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(usr_ts)
+```
+
+### KRW/USD FX rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+adf.test(kr_ts)
+```
+
+### trade import South Korea vs USA
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(import_ts)
+```
+
+### trade export South Korea vs USA
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(export_ts)
+
+```
+
+### USA & South korea yield spread rate(3y)
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(yield_3y_ts)
+
+```
+
+### USA & South korea yield spread rate(10y)
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(yield_10y_ts)
+
+```
+
+### seoul housing property index
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(house_ts)
+
+```
+
+### USD index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(usd_ts_log)
+
+```
+
+### KOSPI index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(kospi_ts_log)
+
+```
+
+
+### S&P500 index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(sp_ts_log)
+
+```
+
+
+
+:::
+
+For all plots, the p-value is greater than 0.05, which fails to reject null hypothesis. This means, all the  plots are non-stationary. So, conducting  further approach is required  to ensure that each plots can become stationary. This aligns with what  all of our ACF/PACF plots shows.
+
+
+
+# Differencing
+
+
+::: panel-tabset
+
+
+### South korea base rate
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+bok_diff<- diff(bok_ts)
+ggAcf(bok_diff) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced: ACF of South Korea base rate") +
+  theme_bw()
+
+ggPacf(bok_diff) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced: PACF of South Korea base rate") +
+  theme_bw()
+```
+
+
+The ACF shows a significant spike at lag 1 of approximately 0.37, followed by smaller spikes at lags 2-3, with some negative correlations appearing around lags 8-11. Most lags beyond lag 3 remain within the confidence bounds. The PACF shows a dominant spike at lag 1, followed by scattered smaller spikes at various lags including around lag 13. Overall, most correlations have diminished substantially compared to the original series. After first differencing, this series appears to be closer to stationarity. 
+
+
+### Federal Reserve Rate 
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+usr_diff<- diff(usr_ts)
+
+ggAcf(usr_diff) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced: ACF of Federal Reserve Rate ") +
+  theme_bw()
+
+ggPacf(usr_diff) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced: PACF of Federal Reserve Rate ") +
+  theme_bw()
+```
+
+The ACF displays significant positive spikes at lags 1, 2, and 3 (around 0.6, 0.5, and 0.35 respectively), followed by several negative spikes around lags 7-11. The pattern shows a slow oscillating decay. The PACF shows a very large spike at lag 1 and then most other lags remain within bounds, with some scattered minor exceedances. This pattern differs noticeably from the South Korea rate.
+This series shows evidence of remaining non-stationarity or strong autocorrelation even after first differencing. 
+
+### KRW/USD FX rate
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+kr_diff<- diff(kr_ts)
+
+ggAcf(kr_diff,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced: ACF of KRW/USD FX rate") +
+  theme_bw()
+
+ggPacf(kr_diff,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced: PACF of  KRW/USD FX rate") +
+  theme_bw()
+```
+
+The ACF shows many small spikes scattered throughout the lags, with most staying within or just barely outside the confidence bounds. The correlations appear fairly random with no clear pattern, hovering close to zero. The PACF displays a similar pattern with multiple small spikes at various lags (notably around lags 8, 20, 27, 38, and 42), but most remain small in magnitude and many are within the confidence bounds.
+This differenced series appears to be  stationary and close to white noise. The lack of strong patterns in both ACF and PACF suggests that first differencing has successfully removed the non-stationary component. 
+
+### trade import South Korea vs USA
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+import_diff <- diff(import_ts)
+
+ggAcf(import_diff) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced: ACF of trade import South Korea vs USA") +
+  theme_bw()
+
+ggPacf(import_diff) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced: PACF of trade import South Korea vs USA") +
+  theme_bw()
+```
+
+
+The ACF shows a very large negative spike at lag 1 (approximately -0.45), followed by mostly random small spikes that stay within confidence bounds. The PACF displays an extremely large negative spike at lag 1 (nearly -0.5), with most other lags remaining within bounds except for a few minor exceedances at lags around 6, 8, and 23.
+This series appears stationary after differencing but exhibits strong negative autocorrelation.
+
+### trade export South Korea vs USA
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+export_diff <- diff(export_ts)
+
+ggAcf(export_diff) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced: ACF of trade export South Korea vs USA") +
+  theme_bw()
+
+ggPacf(export_diff) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced: PACF of trade export South Korea vs USA") +
+  theme_bw()
+```
+
+The ACF shows significant positive spikes at lags 5 and 12, and a significant spike at lag 24, suggesting potential seasonal patterns. Most other lags remain within bounds with scattered minor exceedances. The PACF shows positive spikes at lags 5, 12, and 24, with most other lags within bounds, reinforcing the suggestion of seasonality in the data.
+This series appears stationary after first differencing, but exhibits clear seasonal patterns. 
+
+### USA & South Korea yield spread rate(3Y)
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+
+yield_3y_ts_diff <- diff(yield_3y_ts)
+
+ggAcf(yield_3y_ts_diff,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced: ACF of USA & South Korea yield spread rate(3Y)") +
+  theme_bw()
+
+ggPacf(yield_3y_ts_diff,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced: PACF of USA & South Korea yield spread rate(3Y)") +
+  theme_bw()
+```
+
+The ACF shows a very large negative spike at lag 1 (approximately -0.12), with all other lags appearing as small random fluctuations within the confidence bounds. The PACF displays a similar pattern with a large negative spike at lag 1 and all other lags remaining comfortably within bounds. The correlations are much smaller in magnitude compared to the interest rate series.
+This series appears stationary after first differencing.
+
+### USA & South Korea yield spread rate(10Y)
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+yield_10y_ts_diff <- diff(yield_10y_ts)
+
+ggAcf(yield_10y_ts_diff,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced: ACF of USA & South Korea yield spread rate(10Y)") +
+  theme_bw()
+
+ggPacf(yield_10y_ts_diff,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced: PACF of USA & South Korea yield spread rate(10Y)") +
+  theme_bw()
+```
+
+The ACF shows a large negative spike at lag 1 (approximately -0.11), with scattered small spikes throughout but most remaining within bounds. There are some notable spikes around lags 8, 40-42, and 49. The PACF shows a similar large negative spike at lag 1, with most other lags within bounds except for some minor exceedances at longer lags around 40-50. This series is stationary after first differencing, very similar to the 3Y spread.
+
+### Seoul housing  property index 
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+
+house_dlog <- diff(house_ts)
+
+ggAcf(house_dlog) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced: ACF of Seoul housing  property index ") +
+  theme_bw()
+
+ggPacf(house_dlog) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced: PACF of Seoul housing  property index ") +
+  theme_bw()
+```
+
+The ACF shows a very large positive spike at lag 1 (approximately 0.87), followed by strong positive spikes at lags 2 (0.70) and 3 (0.52), with a clear exponential decay pattern continuing through about lag 7. After lag 7, correlations become small but some remain just outside bounds. The PACF shows a massive spike at lag 1 (around 0.87) and then all subsequent lags remain within the confidence bounds.
+This series seems NOT stationary even after first differencing. The extremely high lag 1 autocorrelation and slow decay in the ACF strongly suggest that first differencing was insufficient.
+For this, second order differencing will be conducted later. 
+
+### USD index
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+#log
+
+usd_dlog <- diff(usd_ts_log) 
+
+ggAcf(usd_dlog,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced: ACF of USD index") +
+  theme_bw()
+
+ggPacf(usd_dlog,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced: PACF of USD index") +
+  theme_bw()
+```
+
+The ACF shows small correlations scattered throughout all lags, with most remaining within the confidence bounds. There are a few lags that barely exceed the bounds (notably around lags 1, 20, and 30), but the magnitudes are very small (all under 0.04). The PACF displays a similar pattern with many small spikes scattered across lags, with a couple just exceeding the bounds around lags 1, 20, and 30, but again all are small in magnitude.
+This differenced series appears to be stationary. The lack of any strong patterns in both ACF and PACF, combined with the very small magnitudes of all correlations, suggests that first differencing has successfully removed the non-stationary component.
+
+### KOSPI index 
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+#log
+
+kospi_dlog <- diff(kospi_ts_log) 
+
+ggAcf(kospi_dlog,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced: ACF of KOSPI index") +
+  theme_bw()
+
+ggPacf(kospi_dlog,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced: PACF of KOSPI index") +
+  theme_bw()
+```
+
+The ACF shows small positive correlations at various lags, with no strong decay pattern. Most lags remain within bounds, though there are noticeable spikes at lags around 1, 12-13, and 48-49, all staying relatively small in magnitude (under 0.03). The PACF shows a similar scattered pattern with small spikes throughout, with slightly larger ones at lags 1, 12, and 48, but most correlations are close to zero and within the confidence bounds.
+This differenced series appears to be stationary. The correlations are all very small, suggesting that first differencing has effectively removed the trend component.
+
+### S&P500 index
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+#log 
+
+sp_dlog <- diff(sp_ts_log) 
+
+ggAcf(sp_dlog,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="blue") +
+  labs(title = "Differenced: ACF of S&P500 index") +
+  theme_bw()
+
+ggPacf(sp_dlog,lag.max = 50) +
+  geom_segment(aes(xend = lag, yend = 0), color="red") +
+  labs(title = "Differenced: PACF of S&P500 index") +
+  theme_bw()
+```
+
+The ACF shows small correlations scattered across all lags with no clear decay pattern. There are a few notable spikes that exceed the confidence bounds at lags around 7, 13, 15, 28, and 47, but all remain small in magnitude (under 0.03). Most lags are very close to zero. The PACF displays a similar pattern with scattered small spikes, including some that exceed bounds at lags 7, 13, 15, 28, and 32, but again all are small in magnitude.
+This differenced series appears to be stationary. Like the KOSPI, the S&P500 in differences shows very weak autocorrelation patterns, consistent with efficient market behavior. 
+
+:::
+
+
+
+
+# Augmented Dickey-Fuller Test after differencing
+
+::: panel-tabset
+
+
+### South korea base rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(bok_diff)
+```
+
+###  Federal Reserve rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(usr_diff)
+```
+
+### KRW/USD FX rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+adf.test(kr_diff)
+```
+
+### trade import South Korea vs USA
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(import_diff)
+```
+
+### trade export South Korea vs USA
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(export_diff)
+
+```
+
+### USA & South korea yield spread rate(3y)
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(yield_3y_ts_diff)
+
+```
+
+### USA & South korea yield spread rate(10y)
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(yield_10y_ts_diff)
+
+```
+
+### seoul housing property index
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(house_dlog)
+
+```
+
+### USD index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(usd_dlog)
+
+```
+
+### KOSPI index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(kospi_dlog)
+
+```
+
+
+### S&P500 index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+adf.test(sp_dlog)
+
+```
+
+:::
+
+
+For all plots, the p-value is greater than 0.05, which fails to reject null hypothesis. This means, all the  plots are non-stationary. So, conducting  further approach is required  to ensure that each plots can become stationary. This aligns with what  all of our ACF/PACF plots shows except seoul housing index, which second order will be conducted(in univariate section) for accurate result.
+
+
+
+
+
+# Moving Average
+
+::: panel-tabset
+
+
+### South Korea base rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+dates  <- as.Date(as.yearqtr(time(bok_ts)))            
+bok_df <- data.frame(Date = dates, Value = as.numeric(bok_ts)) 
+bok_df$MA3 <- rollmean(bok_df$Value, 3, fill = NA, align = "right")
+bok_df$MA6 <- rollmean(bok_df$Value,6, fill = NA, align = "right")
+bok_df$MA12 <- rollmean(bok_df$Value, 12, fill = NA, align = "right")
+
+plot_ly(bok_df, x = ~Date) %>%
+  add_lines(y = ~Value, name = "South Korea base rate", line = list(color = "black")) %>%
+  add_lines(y = ~MA3, name = "MA3", line = list(color = "blue")) %>%
+  add_lines(y = ~MA6, name = "MA6", line = list(color = "red")) %>%
+  add_lines(y = ~MA12, name = "MA12", line = list(color = "green")) %>%
+  layout(title = " South Korea base rate with Moving Averages",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "Rate (%)"))
+
+```
+
+
+
+### Federal Reserve rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+#| 
+
+dates  <- as.Date(as.yearqtr(time(usr_ts)))              
+usr_df <- data.frame(Date = dates, Value = as.numeric(usr_ts))  
+
+usr_df$MA3 <- rollmean(usr_df$Value, 3, fill = NA, align = "right")
+usr_df$MA6 <- rollmean(usr_df$Value,6, fill = NA, align = "right")
+usr_df$MA12 <- rollmean(usr_df$Value, 12, fill = NA, align = "right")
+
+plot_ly(usr_df, x = ~Date) %>%
+  add_lines(y = ~Value, name = "Federal Reserve rate", line = list(color = "black")) %>%
+  add_lines(y = ~MA3, name = "MA3", line = list(color = "blue")) %>%
+  add_lines(y = ~MA6, name = "MA6", line = list(color = "red")) %>%
+  add_lines(y = ~MA12, name = "MA12", line = list(color = "green")) %>%
+  layout(title = " Federal Reserve rate with Moving Averages",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "Rate (%)"))
+
+```
+
+
+
+### KRW/USD FX rate
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+kr_ts <- ts(kr$usd,
+            start = c(year(min(kr$Date)), 1),
+            frequency = 252)
+
+kr_df <- data.frame(Date = kr$Date, Value = as.numeric(kr_ts))
+
+kr_df$MA50 <- rollmean(kr_df$Value, 50, fill = NA, align = "right")
+kr_df$MA100 <- rollmean(kr_df$Value, 100, fill = NA, align = "right")
+kr_df$MA200 <- rollmean(kr_df$Value, 200, fill = NA, align = "right")
+
+plot_ly(kr_df, x = ~Date) %>%
+  add_lines(y = ~Value, name = "KRW/USD spot rate", line = list(color = "black")) %>%
+  add_lines(y = ~MA50, name = "MA50", line = list(color = "blue")) %>%
+  add_lines(y = ~MA100, name = "MA100", line = list(color = "red")) %>%
+  add_lines(y = ~MA200, name = "MA200", line = list(color = "green")) %>%
+  layout(title = " KRW/USD spot rate with Moving Averages",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "KRW/USD"))
+
+```
+
+### trade import South Korea vs USA
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+dates <- as.Date(as.yearmon(time(import_ts)))             
+import_df <- data.frame(Date = dates, Value = as.numeric(import_ts))  
+import_df$MA12 <- rollmean(import_df$Value, 12, fill = NA, align = "right")
+import_df$MA24 <- rollmean(import_df$Value, 24, fill = NA, align = "right")
+import_df$MA36 <- rollmean(import_df$Value, 36, fill = NA, align = "right")
+
+plot_ly(import_df, x = ~Date) %>%
+  add_lines(y = ~Value, name = "trade import South Korea vs USA", line = list(color = "black")) %>%
+  add_lines(y = ~MA12, name = "MA12", line = list(color = "blue")) %>%
+  add_lines(y = ~MA24, name = "MA24", line = list(color = "red")) %>%
+  add_lines(y = ~MA36, name = "MA36", line = list(color = "green")) %>%
+  layout(title = "Trade import South Korea vs USA with Moving Averages",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "trade import South Korea vs USA"))
+
+```
+
+### trade export South Korea vs USA
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+dates <- as.Date(as.yearmon(time(export_ts)))              
+export_df <- data.frame(Date = dates, Value = as.numeric(export_ts)) 
+export_df$MA12 <- rollmean(export_df$Value, 12, fill = NA, align = "right")
+export_df$MA24 <- rollmean(export_df$Value, 24, fill = NA, align = "right")
+export_df$MA36 <- rollmean(export_df$Value, 36, fill = NA, align = "right")
+
+plot_ly(export_df, x = ~Date) %>%
+  add_lines(y = ~Value, name = "trade export South Korea vs USA", line = list(color = "black")) %>%
+  add_lines(y = ~MA12, name = "MA12", line = list(color = "blue")) %>%
+  add_lines(y = ~MA24, name = "MA24", line = list(color = "red")) %>%
+  add_lines(y = ~MA36, name = "MA36", line = list(color = "green")) %>%
+  layout(title = "Trade export South Korea vs USA with Moving Averages",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "trade export South Korea vs USA"))
+
+```
+
+### USA & South korea yield spread rate(3y)
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+yield_3y_ts <- ts(df$US_KR_3Y,
+            start = c(year(min(df$Date)), 1),
+            frequency = 252)
+
+yield_3y_df <- data.frame(Date = df$Date, Value = as.numeric(yield_3y_ts))
+
+yield_3y_df$MA50 <- rollmean(yield_3y_df$Value, 50, fill = NA, align = "right")
+yield_3y_df$MA100 <- rollmean(yield_3y_df$Value, 100, fill = NA, align = "right")
+yield_3y_df$MA200 <- rollmean(yield_3y_df$Value, 200, fill = NA, align = "right")
+
+plot_ly(yield_3y_df, x = ~Date) %>%
+  add_lines(y = ~Value, name = "USA & South korea yield spread rate(3y)", line = list(color = "black")) %>%
+  add_lines(y = ~MA50, name = "MA50", line = list(color = "blue")) %>%
+  add_lines(y = ~MA100, name = "MA100", line = list(color = "red")) %>%
+  add_lines(y = ~MA200, name = "MA200", line = list(color = "green")) %>%
+  layout(title = "USA & South korea yield spread rate(3y) with Moving Averages",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "Rate (%)"))
+
+```
+
+### USA & South korea yield spread rate(10y)
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+yield_10y_ts <- ts(df$US_KR_10Y,
+            start = c(year(min(df$Date)), 1),
+            frequency = 252)
+yield_10y_df <- data.frame(Date = df$Date, Value = as.numeric(yield_10y_ts))
+
+
+yield_10y_df$MA50 <- rollmean(yield_3y_df$Value, 50, fill = NA, align = "right")
+yield_10y_df$MA100 <- rollmean(yield_3y_df$Value, 100, fill = NA, align = "right")
+yield_10y_df$MA200 <- rollmean(yield_3y_df$Value, 200, fill = NA, align = "right")
+
+plot_ly(yield_10y_df, x = ~Date) %>%
+  add_lines(y = ~Value, name = "USA & South korea yield spread rate(10y)", line = list(color = "black")) %>%
+  add_lines(y = ~MA50, name = "MA50", line = list(color = "blue")) %>%
+  add_lines(y = ~MA100, name = "MA100", line = list(color = "red")) %>%
+  add_lines(y = ~MA200, name = "MA200", line = list(color = "green")) %>%
+  layout(title = "USA & South korea yield spread rate(10y) with Moving Averages",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "Rate (%)"))
+```
+
+### seoul housing property index
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+dates <- as.Date(as.yearmon(time(house_ts)))              
+housing_df <- data.frame(Date = dates, Value = as.numeric(house_ts)) 
+
+
+housing_df$MA12 <- rollmean(housing_df$Value, 12, fill = NA, align = "right")
+housing_df$MA24 <- rollmean(housing_df$Value, 24, fill = NA, align = "right")
+housing_df$MA36 <- rollmean(housing_df$Value, 36, fill = NA, align = "right")
+
+plot_ly(housing_df, x = ~Date) %>%
+  add_lines(y = ~Value, name = "Seoul housing property index", line = list(color = "black")) %>%
+  add_lines(y = ~MA12, name = "MA12", line = list(color = "blue")) %>%
+  add_lines(y = ~MA24, name = "MA24", line = list(color = "red")) %>%
+  add_lines(y = ~MA36, name = "MA36", line = list(color = "green")) %>%
+  layout(title = "Seoul housing property Index with Moving Averages",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "Housing Index"))
+
+```
+
+### USD index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+usd_ts <- ts(usd$usd_index,
+            start = c(year(min(usd$Date)), 1),
+            frequency = 252)
+
+usd_df <- data.frame(Date = usd$Date, Value = as.numeric(usd_ts))
+
+usd_df$MA50 <- rollmean(usd_df$Value, 50, fill = NA, align = "right")
+usd_df$MA100 <- rollmean(usd_df$Value, 100, fill = NA, align = "right")
+usd_df$MA200 <- rollmean(usd_df$Value, 200, fill = NA, align = "right")
+
+plot_ly(usd_df, x = ~Date) %>%
+  add_lines(y = ~Value, name = "USD Index", line = list(color = "black")) %>%
+  add_lines(y = ~MA50, name = "MA50", line = list(color = "blue")) %>%
+  add_lines(y = ~MA100, name = "MA100", line = list(color = "red")) %>%
+  add_lines(y = ~MA200, name = "MA200", line = list(color = "green")) %>%
+  layout(title = "USD Index with Moving Averages",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "USD Index"))
+
+```
+
+### KOSPI index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+kospi_ts <- ts(kospi$Close,
+            start = c(year(min(kospi$Date)), 1),
+            frequency = 252)
+
+kospi_df <- data.frame(Date = kospi$Date, Value = as.numeric(kospi_ts))
+
+kospi_df$MA50 <- rollmean(kospi_df$Value, 50, fill = NA, align = "right")
+kospi_df$MA100 <- rollmean(kospi_df$Value, 100, fill = NA, align = "right")
+kospi_df$MA200 <- rollmean(kospi_df$Value, 200, fill = NA, align = "right")
+
+plot_ly(kospi_df, x = ~Date) %>%
+  add_lines(y = ~Value, name = "KOSPI", line = list(color = "black")) %>%
+  add_lines(y = ~MA50, name = "MA50", line = list(color = "blue")) %>%
+  add_lines(y = ~MA100, name = "MA100", line = list(color = "red")) %>%
+  add_lines(y = ~MA200, name = "MA200", line = list(color = "green")) %>%
+  layout(title = "KOSPI Index with Moving Averages",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "KOSPI"))
+
+```
+
+
+### S&P500 index 
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+sp_ts <- ts(sp500$Close,                                                
+             start = c(year(min(sp500$Date)), 1),
+            frequency = 252)                                              
+sp500_df <- data.frame(Date = sp500$Date, Value = as.numeric(sp_ts))
+
+sp500_df$MA50 <- rollmean(sp500_df$Value, 50, fill = NA, align = "right")
+sp500_df$MA100 <- rollmean(sp500_df$Value, 100, fill = NA, align = "right")
+sp500_df$MA200 <- rollmean(sp500_df$Value, 200, fill = NA, align = "right")
+
+plot_ly(sp500_df, x = ~Date) %>%
+  add_lines(y = ~Value, name = "S&P500", line = list(color = "black")) %>%
+  add_lines(y = ~MA50, name = "MA50", line = list(color = "blue")) %>%
+  add_lines(y = ~MA100, name = "MA100", line = list(color = "red")) %>%
+  add_lines(y = ~MA200, name = "MA200", line = list(color = "green")) %>%
+  layout(title = "S&P500 Index with Moving Averages",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "S&P500"))
+```
+
+:::
+
+
+
+- South Korea base rate — MA3 / MA6 / MA12
+MA3 hugs the policy path closely and shows every wiggle; good for short-term shifts but still choppy. MA6 trims a lot of the month-to-month noise and captures inflections earlier than MA12. MA12 is the smoothest but lags notably—during the 2024–25 jump it under-shoots the peak and turns later.
+
+- Federal Funds rate — MA3 / MA6 / MA12
+Same pattern: MA3 tracks near the target with small oscillations; MA6 balances smoothness with timely turns. MA12 best shows the multi-year regimes but reacts last to both the pandemic-era lift-off and the latest easing hints.
+
+- KRW/USD spot — MA50 / MA100 / MA200
+MA50 responds fastest to swings and gives earlier crossover signals but whipsaws more. MA100 is a middle road, filtering short bursts yet catching medium-term trends. MA200 is very stable, ideal for the long-run dollar trend versus KRW, but it will miss shorter cycles.
+
+- Korea–US trade imports — MA12 / MA24 / MA36
+MA12 preserves seasonal/short business-cycle movements and shows timing of surges and slowdowns best. MA24 reduces those oscillations and highlights the underlying climb. MA36 smooths heavily and is useful for long-horizon trend levels, at the cost of noticeable lag at turning points.
+
+- Korea–US trade exports — MA12 / MA24 / MA36
+MA12 captures export accelerations and dips quickly, helpful for monitoring momentum. MA24 dampens volatility and clarifies medium-term expansions. MA36 offers a clean structural trend but turns well after the fact in the 2020s cycle.
+
+- US–KR 3-year yield spread — MA50 / MA100 / MA200
+MA50 reacts early to spread reversals and flags regime changes first, though it’s twitchier. MA100 stabilizes the shape and still picks up the 2020–25 upswing in good time. MA200 is the steadiest—great for high-level regime view—but late at both troughs and peaks.
+
+- US–KR 10-year yield spread — MA50 / MA100 / MA200
+Similar trade-offs: MA50 is most responsive and catches shifts around the 2010s and mid-2020s quickly. MA100 smooths without losing medium-term timing. MA200 gives a slow, clear secular picture of narrowing then widening spreads with the most lag.
+
+- Seoul housing index — MA12 / MA24 / MA36
+MA12 spots the crest and rollover quickest in the early-2020s. MA24 offers a cleaner arc of the cycle, muting month-to-month noise. MA36 is very smooth but lates the post-peak stabilization, so better for policy/structural views than timing.
+
+- USD Index — MA50 / MA100 / MA200
+MA50 catches tactical swings and crossover signals, but it flips more often. MA100 nicely summarizes medium-run trends. MA200 shows the secular dollar waves (’80s peak, 2000s rise, 2010s base) and is the least noisy, with the largest delay.
+
+- KOSPI — MA50 / MA100 / MA200
+MA50 is most sensitive—good for momentum but prone to whipsaw in selloffs/rebounds. MA100 cuts a lot of noise yet reacts within a reasonable window. MA200 defines bull/bear phases and major supports; excellent for long-term risk posture, slow for entries/exits.
