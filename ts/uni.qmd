@@ -3,8 +3,17 @@ title: "Univariate TS Models(ARIMA/SARIMA)"
 format: html
 ---
 
+::: {.callout-note appearance="simple"}
 
-# package needed 
+# note
+
+In the EDA part, there is stationary observed from ACF and PACF plot except seoul housing index. Also ADF test(after differencing) confirms this with significant low p-value. To check further specifically seoul housing index, first part of this section is performing second order differencing. 
+
+:::
+
+
+
+### package needed 
 
 ```{r,message = F,warning = F}
 #| echo: true
@@ -85,8 +94,7 @@ usd <- usd %>%
 
 # Seoul housing data
 
-housing <- read_csv(here("data/housing/seoul_housing.csv"), skip = 3) %>%
-  select(Date = `TIME_PERIOD:Period`, housing = `OBS_VALUE:Value`)%>%
+housing <- read_csv(here("data/housing/house.csv")) %>%
   mutate(Date = as.Date(Date))
 
 housing <- housing %>% mutate(Date = as.Date(Date))
@@ -154,16 +162,6 @@ kospi <- read_csv("../data/stock/kospi.csv")
 kospi$Date <- as.Date(kospi$Date)
 
 ```
-
-
-
-::: {.callout-note appearance="simple"}
-
-# note
-
-In the EDA part, there is stationary observed from ACF and PACF plot except seoul housing index. Also ADF test(after differencing) confirms this with significant low p-value.
-
-:::
 
 
 # Differencing
@@ -709,6 +707,14 @@ $$
 :::
 
 
+
+
+
+
+
+
+
+
 # SARIMA Model
 
 ### ACF & PACF plot for seasonal data 
@@ -932,6 +938,91 @@ $$
 :::
 
 
+## Model choice(with equation)
+
+- South korea base rate 
+
+ Model : ARIMA(0,1,1)
+  
+$$
+Equation: x_t = 1.0000x_{t-1} + w_t + 0.0161w_{t-1}
+$$
+
+- Federal reserve  rate
+
+ Model: ARIMA(1,1,0) 
+
+$$
+Equation:\; x_t = x_{t-1} + 0.6987(x_{t-1} - x_{t-2}) + 0.0229 + w_t
+$$
+
+- KRW/USD FX rate
+
+ Model: ARIMA(1,0,1)
+
+$$
+Equation:\; x_t = 0.9997x_{t-1} + w_t + 0.0165w_{t-1} + 0.0011
+$$
+
+- USA & South Korea yield spread rate(10Y)
+
+ Model : ARIMA(1,0,1)
+
+$$
+Equation:\; x_t = 0.9968x_{t-1} + w_t - 0.0896w_{t-1} - 0.7027
+$$
+
+- USD index
+
+ Model: ARIMA(1,0,0)
+
+$$
+Equation:\; x_t = 0.9997x_{t-1} + 4.5713 + w_t
+$$
+
+- S&P500 index 
+
+ Model: ARIMA(0,1,1)
+
+$$
+Equation:\; x_t = x_{t-1} + 0.0003 + w_t - 0.0802w_{t-1}
+$$
+
+- KOSPI index 
+
+ Model : ARIMA(0,1,2)
+
+$$
+Equation:\; x_t = x_{t-1} + 0.0000 + w_t + 0.0258w_{t-1} - 0.0214w_{t-2}
+$$
+
+- Trade import South korea vs USA  Model 
+
+ SARIMA(0,1,2)(0,1,1)[12]
+
+$$
+Equation:\; (1 - B)(1 - B^{12})x_t = (1 - 0.5291B + 0.1363B^2)(1 - 0.9351B^{12})w_t
+$$
+
+- Trade import South korea vs USA  
+
+ Model : SARIMA(0,1,1)(0,1,1)[12] 
+
+$$
+Model : SARIMA(0,1,1)(0,1,1)[12] \
+Equation:\; (1 - B)(1 - B^{12})x_t = (1 - 0.5536B)(1 - 0.8441B^{12})w_t
+$$
+
+- Seoul housing property index 
+
+Model : SARIMA(1,1,2)(0,1,1)[12]
+
+$$
+Equation:\; (1 - 0.7799B)(1 - B)(1 - B^{12})x_t = (1 + 0.2868B + 0.1734B^2)(1 - 0.9998B^{12})w_t
+$$
+
+
+
 # Model diagnostics
 
 
@@ -948,6 +1039,8 @@ bok_model<- capture.output(sarima(bok_ts, 0,1,1))
 
 ```
 
+The residual diagnostics for the ARIMA(0,1,1) model indicate a fairly good fit. The standardized residuals fluctuate randomly around zero, suggesting the mean of the residuals is stable over time. However there are outlier times for example around 2019 and 2025 Q1. The ACF plot shows no significant spikes beyond the 95% confidence limits, implying that the residuals are uncorrelated and behave like white noise. The Q–Q plot of standardized residuals is mostly linear, though with slight deviations at the tails, indicating mild non-normality. The Ljung–Box test p-values remain above 0.05 across lags, confirming that there is no significant autocorrelation left in the residuals. 
+
 ###  Federal Reserve rate
 
 ```{r,message = F,warning = F}
@@ -957,6 +1050,9 @@ bok_model<- capture.output(sarima(bok_ts, 0,1,1))
 usr_model<- capture.output(sarima(usr_ts, 1, 1, 0))
 
 ```
+
+The residuals from the ARIMA(1,1,0) model are well-behaved and largely centered around zero, with only a few spikes visible around 2009 and 2020. The ACF plot reveals no substantial autocorrelation at any lag, supporting the conclusion that the residuals are random and independent. The Q–Q plot demonstrates a near-linear relationship between sample and theoretical quantiles, except for small departures at both ends of the distribution, which suggests slight heavy-tailed behavior. The Ljung–Box p-values mostly exceed 0.05, indicating the residuals are effectively white noise. This model performs well and adequately represents the time series dynamics, with minimal room for improvement.
+
 
 ### KRW/USD FX rate
 
@@ -968,6 +1064,9 @@ kr_model<- capture.output(sarima(kr_ts, 1,0,1))
 
 ```
 
+For the ARMA(1,0,1) model, the residuals fluctuate around zero but exhibit slightly higher volatility than desired, particularly during certain time intervals. The ACF of the residuals shows weak but visible autocorrelation at the first few lags.  The Q–Q plot displays substantial deviation from the 45-degree line in the tails, implying the presence of heavy tails and possible outliers, showing non-linearity. The Ljung–Box test results show a few p-values below the 0.05 threshold, which further indicates some remaining structure in the residuals. In summary, while the model fits decently, it may not fully capture the short-term autocorrelation and could benefit from a slightly more complex specification.
+
+
 ### trade import South Korea vs USA
 
 ```{r,message = F,warning = F}
@@ -977,6 +1076,8 @@ kr_model<- capture.output(sarima(kr_ts, 1,0,1))
 import_model<- capture.output(sarima(import_ts, 0,1,2,0,1,1,12))
 
 ```
+
+The SARIMA(0,1,2)×(0,1,1)[12] model shows residuals that are roughly centered around zero, though some mild volatility clustering is visible toward the end of the series. The ACF plot exhibits small but notable spikes at seasonal lags.  The Q–Q plot suggests that the residuals in heavier tails at the extremes, shows non-linearity. The Ljung–Box test indicates that many p-values are below 0.05, suggesting the presence of lingering autocorrelation, indicating it is not fully capturing underlying structure of time series .
 
 ### trade export South Korea vs USA
 
@@ -988,6 +1089,9 @@ export_model<- capture.output(sarima(export_ts, 0,1,1,0,1,1,12))
 
 ```
 
+The SARIMA(0,1,1)×(0,1,1)[12] model shows residuals that are roughly centered around zero, though some mild volatility clustering is visible toward the end of the series. The ACF plot exhibits small but notable spikes at seasonal lags.  The Q–Q plot suggests that the residuals in heavier tails at the extremes, shows non-linearity. The Ljung–Box test indicates that many p-values are below 0.05, suggesting the presence of lingering autocorrelation, indicating it is not fully capturing the underlying structure of time series .
+
+
 ### USA & South korea yield spread rate(3y)
 
 ```{r,message = F,warning = F}
@@ -996,6 +1100,8 @@ export_model<- capture.output(sarima(export_ts, 0,1,1,0,1,1,12))
 
 yield_3y_model<- capture.output(sarima(yield_3y_ts, 0, 1, 1))
 ```
+
+The ARIMA(0,1,1) model shows residuals that  are roughly centered around zero(with one outlier), showing no trend or nonstationarity. The ACF plot is nearly flat, with no significant spikes, suggesting residual independence. The Q–Q plot, however, reveals heavier lower tails, indicating a non-normal distribution. The Ljung–Box test p-values fluctuate around the 0.05 line but mostly remain above it, meaning there is no strong evidence of autocorrelation, it is best to interpret as weak autocorrelation. 
 
 ### USA & South korea yield spread rate(10y)
 
@@ -1007,6 +1113,8 @@ yield_10y_model<- capture.output(sarima(yield_10y_ts, 1, 0, 1))
 
 ```
 
+The ARIMA(1,0,1) model shows residuals that  are roughly centered around zero(with one outlier), showing no trend or nonstationarity. The ACF plot is nearly flat, with no significant spikes, suggesting residual independence. The Q–Q plot, however, reveals heavier lower tails, indicating a non-normal distribution. The Ljung–Box test p-values fluctuate around the 0.05 line but mostly remain above it, meaning there is no strong evidence of autocorrelation, it is best to interpret as weak autocorrelation. 
+
 ### seoul housing property index
 
 ```{r,message = F,warning = F}
@@ -1017,15 +1125,19 @@ house_model<- capture.output(sarima(house_ts, 1, 1, 2,0,1,1,12))
 
 ```
 
+The residual diagnostics for the SARIMA(1,1,2)×(0,1,1)[12] model indicate a strong overall fit. The standardized residuals are well-centered and show no visible trend or heteroskedasticity.However since there are fluctuations, it is possible to suspect the fit of the model. The ACF plot reveals that all autocorrelations fall within the confidence bounds, demonstrating that the residuals are uncorrelated. The Q–Q plot is slight deviations at the tails, close to normal, but non-normal. The Ljung–Box test p-values are all above 0.05, suggesting that there is no evidence of autocorrelation remaining. 
+
 ### USD index 
 
 ```{r,message = F,warning = F}
 #| echo: true
 #| code-fold: true
 
-usd_model<- capture.output(sarima(usd_log, 1, 0,0))
+usd_model<- capture.output(sarima(usd_log, 1,0,0))
 
 ```
+
+The ARIMA(1,0,0) model produces residuals that fluctuate around zero without clear patterns, indicating good fit of the model. The ACF of the residuals is nearly flat, with no significant spikes, indicating that the model successfully removed most autocorrelation. The Q–Q plot shows heavy tails and slight skewness, implying some non-normality. The Ljung–Box p-values are above 0.05 but close to 0.05, meaning there is weak sign of autocorrelation left in the residuals. 
 
 ### KOSPI index 
 
@@ -1038,6 +1150,7 @@ kospi_model<- capture.output(sarima(kospi_log, 0,1,2))
 
 ```
 
+The ARIMA(0,1,2) model demonstrates residuals that are mostly stable and centered around zero, with one outlier spike. The ACF plot indicates that residuals are largely uncorrelated, as no autocorrelation exceeds the 95% bounds. The Q–Q plot reveals noticeable deviations at the extremes, with heavy tails indicating non-normal residuals. Ljung–Box test results suggest that most p-values clearly are above 0.05, confirming no remaining autocorrelation. 
 
 ### S&P500 index 
 
@@ -1048,6 +1161,9 @@ kospi_model<- capture.output(sarima(kospi_log, 0,1,2))
 sp_model<- capture.output(sarima(sp_log, 0,1, 1))
 
 ```
+
+The residual diagnostics for the ARIMA(0,1,1) model indicate that it fits the data reasonably well. The standardized residuals fluctuate randomly around zero with stable variance, though a few volatility spikes appear around 2008–2010 and after 2020. The ACF of residuals shows no significant autocorrelation, suggesting that the residuals behave like white noise. The Normal Q–Q plot is mostly linear but deviates slightly at the tails, indicating heavier tails and mild non-normality. The Ljung–Box p-values remain above 0.05 in the first few lags and are close to 0.05 or less ,autocorrelation exists in the residuals, suggesting the model has not fully captured the underlying structure of the time series.
+
 
 :::
 
@@ -1066,7 +1182,7 @@ sp_model<- capture.output(sarima(sp_log, 0,1, 1))
 #| echo: true
 #| code-fold: true
 
-auto.arima(bok_ts)
+#auto.arima(bok_ts)
 
 ```
 
@@ -1076,7 +1192,7 @@ auto.arima(bok_ts)
 #| echo: true
 #| code-fold: true
 
-auto.arima(usr_ts)
+#auto.arima(usr_ts)
 
 ```
 
@@ -1086,7 +1202,7 @@ auto.arima(usr_ts)
 #| echo: true
 #| code-fold: true
 
-auto.arima(kr_ts)
+#auto.arima(kr_ts)
 
 ```
 
@@ -1096,9 +1212,10 @@ auto.arima(kr_ts)
 #| echo: true
 #| code-fold: true
 
-auto.arima(import_ts)
+#auto.arima(import_ts)
 
 ```
+
 
 ### trade export South Korea vs USA
 
@@ -1106,7 +1223,7 @@ auto.arima(import_ts)
 #| echo: true
 #| code-fold: true
 
-auto.arima(export_ts)
+#auto.arima(export_ts)
 
 ```
 
@@ -1116,7 +1233,7 @@ auto.arima(export_ts)
 #| echo: true
 #| code-fold: true
 
-auto.arima(yield_3y_ts)
+#auto.arima(yield_3y_ts)
 
 ```
 
@@ -1126,7 +1243,7 @@ auto.arima(yield_3y_ts)
 #| echo: true
 #| code-fold: true
 
-auto.arima(yield_10y_ts)
+#auto.arima(yield_10y_ts)
 
 ```
 
@@ -1136,7 +1253,7 @@ auto.arima(yield_10y_ts)
 #| echo: true
 #| code-fold: true
 
-auto.arima(house_ts)
+#auto.arima(house_ts)
 
 ```
 
@@ -1146,7 +1263,7 @@ auto.arima(house_ts)
 #| echo: true
 #| code-fold: true
 
-auto.arima(usd_log)
+#auto.arima(usd_log)
 
 ```
 
@@ -1156,7 +1273,7 @@ auto.arima(usd_log)
 #| echo: true
 #| code-fold: true
 
-auto.arima(kospi_log)
+#auto.arima(kospi_log)
 
 ```
 
@@ -1167,11 +1284,18 @@ auto.arima(kospi_log)
 #| echo: true
 #| code-fold: true
 
-auto.arima(sp_log)
+#auto.arima(sp_log)
 
 ```
 
 :::
+
+
+### discrepancy between model selection process and auto.arima 
+
+Both model selection procedure and auto.arima() recommend models, but they weigh evidence differently, so agreement occurs only where the diagnostics are unequivocally clean. For the Federal Reserve rate, trade imports, KOSPI, and S&P 500, residual checks are tidy—flat residual ACFs, Ljung–Box p-values consistently above 0.05, and only mild Q–Q tail bends—so both methods converge on the same specifications. In contrast, several other series show diagnostic red flags that nudge the algorithms apart. The South Korea base rate looks broadly well-fit but exhibits outlier patterns that can distort parameter selection; the FX rate has two large residual outliers and Ljung–Box p-values often below 0.05, indicating unresolved autocorrelation; exports likewise show low Ljung–Box p-values and more volatile residuals than peer models; the 10-year yield spread has one large outlier and Ljung–Box p-values that are acceptable at short lags but approach or fall below 0.05 after roughly 10 lags, again signaling remaining dependence; the Seoul housing index displays notably volatile residuals; and the USD index shows low Ljung–Box p-values, confirming residual autocorrelation. In short, where diagnostics are clean, both methods agree; where outliers, volatility, or lingering autocorrelation appear, auto.arima() tends to prefer more parsimonious, IC-optimal models, while our approach favors specifications that better purge residual structure—hence the differences.
+
+
 
 
 # Forecasting
@@ -1374,7 +1498,7 @@ autoplot(sp_forecast_result) +
 #| code-fold: true
 
 plot_util <- function(forecast_result, ts, h, fit) {
-  #print(accuracy(forecast_result))  
+  print(accuracy(forecast_result))  
   autoplot(ts) +
     autolayer(meanf(ts, h = h), series = "Mean", PI = FALSE) +
     autolayer(naive(ts, h = h), series = "Naïve", PI = FALSE) +
@@ -1418,11 +1542,32 @@ autoplot(bok_forecast, bok_tsibble) +
     guides(colour = "none", linetype = "none") +  
   theme_minimal()
 
+acc_train <- accuracy(fit_bok) %>%
+  dplyr::select(.model, RMSE, MAE, MAPE, MASE, ACF1) %>%
+  dplyr::arrange(RMSE)
+
+h <- 20
+n <- nrow(bok_tsibble)
+bok_train <- bok_tsibble %>% dplyr::slice_head(n = n - h)
+bok_test  <- bok_tsibble %>% dplyr::slice_tail(n = h)
+
+fit_train <- bok_train %>%
+  model(
+    Mean        = MEAN(value),
+    Naive       = NAIVE(value),
+    SNaive      = SNAIVE(value),
+    Drift       = RW(value ~ drift()),
+    ARIMA_model = ARIMA(value ~ pdq(0,1,1))
+  )
+
+fc_test <- forecast(fit_train, h = h)
+
+acc_test <- accuracy(fc_test, bok_test) %>%
+  dplyr::select(.model, RMSE, MAE, MAPE, MASE, ACF1) %>%
+  dplyr::arrange(RMSE)
+print(acc_test)
+
 ```
-
-
-
-
 
 
 ###  Federal Reserve rate
@@ -1449,6 +1594,31 @@ autoplot(usr_forecast, usr_tsibble) +
     guides(colour = "none", linetype = "none") +  
   theme_minimal()
 
+
+acc_train_usr <- accuracy(fit_usr) %>%
+  dplyr::select(.model, RMSE, MAE, MAPE, MASE, ACF1) %>%
+  dplyr::arrange(RMSE)
+
+h <- 20
+n <- nrow(usr_tsibble)
+usr_train <- usr_tsibble %>% dplyr::slice_head(n = n - h)
+usr_test  <- usr_tsibble %>% dplyr::slice_tail(n = h)
+
+fit_train_usr <- usr_train %>%
+  model(
+    Mean        = MEAN(value),
+    Naive       = NAIVE(value),
+    SNaive      = SNAIVE(value),
+    Drift       = RW(value ~ drift()),
+    ARIMA_model = ARIMA(value ~ pdq(0,1,1))
+  )
+
+fc_test_usr <- forecast(fit_train_usr, h = h)
+
+acc_test_usr <- accuracy(fc_test_usr, usr_test) %>%
+  dplyr::select(.model, RMSE, MAE, MAPE, MASE, ACF1) %>%
+  dplyr::arrange(RMSE)
+print(acc_test_usr)
 
 ```
 
@@ -1487,6 +1657,32 @@ autoplot(import_forecast, import_tsibble) +
     guides(colour = "none", linetype = "none") +  
   theme_minimal()
 
+
+
+acc_train_import <- accuracy(fit_import) %>%
+  dplyr::select(.model, RMSE, MAE, MAPE, MASE, ACF1) %>%
+  dplyr::arrange(RMSE)
+
+h <- 36
+n <- nrow(import_tsibble)
+import_train <- import_tsibble %>% dplyr::slice_head(n = n - h)
+import_test  <- import_tsibble %>% dplyr::slice_tail(n = h)
+
+fit_train_import <- import_train %>%
+  model(
+    Mean        = MEAN(value),
+    Naive       = NAIVE(value),
+    SNaive      = SNAIVE(value),
+    Drift       = RW(value ~ drift()),
+    ARIMA_model = ARIMA(value ~ pdq(0,1,1))
+  )
+
+fc_test_import <- forecast(fit_train_import, h = h)
+
+acc_test_import <- accuracy(fc_test_import, import_test) %>%
+  dplyr::select(.model, RMSE, MAE, MAPE, MASE, ACF1) %>%
+  dplyr::arrange(RMSE)
+print(acc_test_import)
 ```
 
 ### trade export South Korea vs USA
@@ -1513,6 +1709,36 @@ autoplot(export_forecast, export_tsibble) +
   labs(x = "Quarter", y = "Predicted Values", colour = "Forecast Methods") +
     guides(colour = "none", linetype = "none") +  
   theme_minimal()
+
+
+
+
+acc_train_export <- accuracy(fit_export) %>%
+  dplyr::select(.model, RMSE, MAE, MAPE, MASE, ACF1) %>%
+  dplyr::arrange(RMSE)
+
+h <- 36
+n <- nrow(export_tsibble)
+export_train <- export_tsibble %>% dplyr::slice_head(n = n - h)
+export_test  <- export_tsibble %>% dplyr::slice_tail(n = h)
+
+fit_train_export <- export_train %>%
+  model(
+    Mean        = MEAN(value),
+    Naive       = NAIVE(value),
+    SNaive      = SNAIVE(value),
+    Drift       = RW(value ~ drift()),
+    ARIMA_model = ARIMA(value ~ pdq(0,1,1))
+  )
+
+fc_test_export <- forecast(fit_train_export, h = h)
+
+acc_test_export <- accuracy(fc_test_export, export_test) %>%
+  dplyr::select(.model, RMSE, MAE, MAPE, MASE, ACF1) %>%
+  dplyr::arrange(RMSE)
+print(acc_test_export)
+
+
 ```
 
 ### USA & South korea yield spread rate(3y)
@@ -1558,6 +1784,34 @@ autoplot(house_forecast, house_tsibble) +
   labs(x = "Quarter", y = "Predicted Values", colour = "Forecast Methods") +
     guides(colour = "none", linetype = "none") +  
   theme_minimal()
+
+
+
+
+acc_train_house <- accuracy(fit_house) %>%
+  dplyr::select(.model, RMSE, MAE, MAPE, MASE, ACF1) %>%
+  dplyr::arrange(RMSE)
+
+h <- 36
+n <- nrow(house_tsibble)
+house_train <- house_tsibble %>% dplyr::slice_head(n = n - h)
+house_test  <- house_tsibble %>% dplyr::slice_tail(n = h)
+
+fit_train_house <- house_train %>%
+  model(
+    Mean        = MEAN(value),
+    Naive       = NAIVE(value),
+    SNaive      = SNAIVE(value),
+    Drift       = RW(value ~ drift()),
+    ARIMA_model = ARIMA(value ~ pdq(0,1,1))
+  )
+
+fc_test_house <- forecast(fit_train_house, h = h)
+
+acc_test_house <- accuracy(fc_test_house, house_test) %>%
+  dplyr::select(.model, RMSE, MAE, MAPE, MASE, ACF1) %>%
+  dplyr::arrange(RMSE)
+print(acc_test_house)
 ```
 
 
@@ -1595,4 +1849,10 @@ plot_util(sp_forecast_result,sp_log, 756, sp_fit)
 ```
 
 :::
+
+
+
+
+
+
 
