@@ -2103,5 +2103,4 @@ print(res_house$plot_mae); print(res_house$plot_rmse)
 :::
 
 
-
-
+For cross-validation, we considered two cases. First, for trade imports, both the model-selection algorithm and auto.arima() chose the same model. Its performance is consistent: as the forecast horizon increases, MAE and RMSE also increase. Second, for Seoul housing prices and trade exports, the two methods selected different models, so we compared their performance directly. Across these comparisons, the model chosen by the model-selection algorithm outperforms the auto.arima() model, yielding lower MAE and RMSE.
