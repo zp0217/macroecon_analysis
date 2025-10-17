@@ -1182,7 +1182,7 @@ The residual diagnostics for the ARIMA(0,1,1) model indicate that it fits the da
 #| echo: true
 #| code-fold: true
 
-#auto.arima(bok_ts)
+auto.arima(bok_ts)
 
 ```
 
@@ -1192,7 +1192,7 @@ The residual diagnostics for the ARIMA(0,1,1) model indicate that it fits the da
 #| echo: true
 #| code-fold: true
 
-#auto.arima(usr_ts)
+auto.arima(usr_ts)
 
 ```
 
@@ -1202,7 +1202,7 @@ The residual diagnostics for the ARIMA(0,1,1) model indicate that it fits the da
 #| echo: true
 #| code-fold: true
 
-#auto.arima(kr_ts)
+auto.arima(kr_ts)
 
 ```
 
@@ -1212,7 +1212,7 @@ The residual diagnostics for the ARIMA(0,1,1) model indicate that it fits the da
 #| echo: true
 #| code-fold: true
 
-#auto.arima(import_ts)
+auto.arima(import_ts)
 
 ```
 
@@ -1223,7 +1223,7 @@ The residual diagnostics for the ARIMA(0,1,1) model indicate that it fits the da
 #| echo: true
 #| code-fold: true
 
-#auto.arima(export_ts)
+auto.arima(export_ts)
 
 ```
 
@@ -1233,7 +1233,7 @@ The residual diagnostics for the ARIMA(0,1,1) model indicate that it fits the da
 #| echo: true
 #| code-fold: true
 
-#auto.arima(yield_3y_ts)
+auto.arima(yield_3y_ts)
 
 ```
 
@@ -1243,7 +1243,7 @@ The residual diagnostics for the ARIMA(0,1,1) model indicate that it fits the da
 #| echo: true
 #| code-fold: true
 
-#auto.arima(yield_10y_ts)
+auto.arima(yield_10y_ts)
 
 ```
 
@@ -1253,7 +1253,7 @@ The residual diagnostics for the ARIMA(0,1,1) model indicate that it fits the da
 #| echo: true
 #| code-fold: true
 
-#auto.arima(house_ts)
+auto.arima(house_ts)
 
 ```
 
@@ -1263,7 +1263,7 @@ The residual diagnostics for the ARIMA(0,1,1) model indicate that it fits the da
 #| echo: true
 #| code-fold: true
 
-#auto.arima(usd_log)
+auto.arima(usd_log)
 
 ```
 
@@ -1273,7 +1273,7 @@ The residual diagnostics for the ARIMA(0,1,1) model indicate that it fits the da
 #| echo: true
 #| code-fold: true
 
-#auto.arima(kospi_log)
+auto.arima(kospi_log)
 
 ```
 
@@ -1284,7 +1284,7 @@ The residual diagnostics for the ARIMA(0,1,1) model indicate that it fits the da
 #| echo: true
 #| code-fold: true
 
-#auto.arima(sp_log)
+auto.arima(sp_log)
 
 ```
 
@@ -1293,7 +1293,7 @@ The residual diagnostics for the ARIMA(0,1,1) model indicate that it fits the da
 
 ### discrepancy between model selection process and auto.arima 
 
-Both model selection procedure and auto.arima() recommend models, but they weigh evidence differently, so agreement occurs only where the diagnostics are unequivocally clean. For the Federal Reserve rate, trade imports, KOSPI, and S&P 500, residual checks are tidy—flat residual ACFs, Ljung–Box p-values consistently above 0.05, and only mild Q–Q tail bends—so both methods converge on the same specifications. In contrast, several other series show diagnostic red flags that nudge the algorithms apart. The South Korea base rate looks broadly well-fit but exhibits outlier patterns that can distort parameter selection; the FX rate has two large residual outliers and Ljung–Box p-values often below 0.05, indicating unresolved autocorrelation; exports likewise show low Ljung–Box p-values and more volatile residuals than peer models; the 10-year yield spread has one large outlier and Ljung–Box p-values that are acceptable at short lags but approach or fall below 0.05 after roughly 10 lags, again signaling remaining dependence; the Seoul housing index displays notably volatile residuals; and the USD index shows low Ljung–Box p-values, confirming residual autocorrelation. In short, where diagnostics are clean, both methods agree; where outliers, volatility, or lingering autocorrelation appear, auto.arima() tends to prefer more parsimonious, IC-optimal models, while our approach favors specifications that better purge residual structure—hence the differences.
+Both model selection procedure and auto.arima() recommend models, but they weigh evidence differently, so agreement occurs only where the diagnostics are unequivocally clean. For the Federal Reserve rate, trade imports, KOSPI, and S&P 500, residual checks are tidy—flat residual ACFs, Ljung–Box p-values consistently above 0.05, and only mild Q–Q tail bends—so both methods converge on the same specifications. In contrast, several other series show diagnostic red flags that nudge the algorithms apart. The South Korea base rate looks broadly well-fit but exhibits outlier patterns that can distort parameter selection; the FX rate has two large residual outliers and Ljung–Box p-values often below 0.05, indicating unresolved autocorrelation; exports likewise show low Ljung–Box p-values and more volatile residuals than peer models; the 10-year yield spread has one large outlier and Ljung–Box p-values that are acceptable at short lags but approach or fall below 0.05 after roughly 10 lags, again signaling remaining dependence; the Seoul housing index displays notably volatile residuals; and the USD index shows low Ljung–Box p-values, confirming residual autocorrelation. In short, where diagnostics are clean, both methods agree; where outliers, volatility, or lingering autocorrelation appear, auto.arima() tends to prefer more parsimonious models, while our approach favors specifications that better purge residual structure—hence the differences.
 
 
 
@@ -1486,6 +1486,8 @@ autoplot(sp_forecast_result) +
 ```
 
 :::
+
+The forecast plots for most series indicate that the models are performing well. The shaded gray bands represent confidence intervals—the ranges within which future values are likely to fall—and their gradual widening over the forecast horizon reflects increasing uncertainty as predictions extend further into the future. For policy rates, which are adjusted periodically rather than daily, short-term fluctuations are naturally limited. This stability is clearly visible in the plots, where the forecast lines remain relatively smooth and the confidence intervals stay narrow over shorter horizons, reflecting the steady nature of monetary policy adjustments and the slower dynamics of interest rate changes compared with high-frequency financial data.
 
 
 
@@ -1851,7 +1853,254 @@ plot_util(sp_forecast_result,sp_log, 756, sp_fit)
 :::
 
 
+The accuracy plots and tables tell a consistent story: at short horizons our ARIMA/SARIMA models generally deliver the lowest MAE and RMSE, sitting below the mean/naïve/seasonal-naïve/drift lines in the horizon–error charts, with the advantage tapering as the horizon lengthens. For policy rates and monthly trade series, SARIMA improves on seasonal-naïve for h≤4–6 steps, while by h≈12 the gap narrows and seasonal-naïve often matches performance. For daily FX and long-maturity yield spreads, random-walk benchmarks (naïve or ARIMA(0,1,1)) remain hard to beat—our curves largely overlap theirs beyond h≈20—so the most reliable gains appear at very short horizons. For equity indices in logs, adding drift yields small but consistent MAE/RMSE improvements up to h≈20–60, after which all models converge. Across series, prediction-interval coverage is close to nominal at short horizons and widens appropriately with h, reinforcing the visual impression from the graphs that uncertainty grows as we look further ahead.
 
+
+
+# cross validation 
+
+
+### utility function & set up
+
+
+
+```{r,message = F,warning = F}
+
+compare_two_models_fixedk <- function(y, fit_base, fit_alt,
+                                      labels = c("Baseline","Alternative"),
+                                      k = 120, s = 12, h = 12) {
+  stopifnot(frequency(y) == s, k >= s, k <= length(y) - s)
+  n  <- length(y)
+  st <- tsp(y)[1] + (k - 2) / s
+  max_origins <- n - k
+
+  mae_b  <- matrix(NA_real_, max_origins, h)
+  mae_a  <- matrix(NA_real_, max_origins, h)
+  rmse_b <- matrix(NA_real_, max_origins, h)  
+  rmse_a <- matrix(NA_real_, max_origins, h)
+
+  for (i in 1:max_origins) {
+    xtrain <- window(y, end = st + i / s)
+    xtest  <- window(y, start = st + (i + 1) / s, end = st + (i + h) / s)
+    m <- length(xtest); if (m <= 0) next
+
+    fcb <- forecast(fit_base(xtrain), h = h)
+    fca <- forecast(fit_alt(xtrain),  h = h)
+
+    eb <- as.numeric(fcb$mean[1:m] - xtest)
+    ea <- as.numeric(fca$mean[1:m] - xtest)
+
+    mae_b[i, 1:m]  <- abs(eb)
+    mae_a[i, 1:m]  <- abs(ea)
+    rmse_b[i, 1:m] <- eb^2
+    rmse_a[i, 1:m] <- ea^2
+  }
+
+  error_table <- tibble(
+    Horizon     = 1:h,
+    MAE_base    = colMeans(mae_b,  na.rm = TRUE),
+    MAE_alt     = colMeans(mae_a,  na.rm = TRUE),
+    RMSE_base   = sqrt(colMeans(rmse_b, na.rm = TRUE)),
+    RMSE_alt    = sqrt(colMeans(rmse_a, na.rm = TRUE)),
+    origins     = max_origins
+  )
+
+  mae_long <- error_table |>
+    select(Horizon, MAE_base, MAE_alt) |>
+    rename(!!labels[1] := MAE_base, !!labels[2] := MAE_alt) |>
+    pivot_longer(-Horizon, names_to = "Model", values_to = "MAE")
+
+  p_mae <- ggplot(mae_long, aes(x = Horizon, y = MAE, color = Model)) +
+    geom_line(linewidth = 1) + geom_point(size = 1.8) +
+    labs(title = "MAE Comparison (1..12 steps)",
+         x = "Forecast Horizon (months ahead)", y = "MAE", color = "Models") +
+    scale_color_manual(values = c("#E74C3C", "#2E86C1")) +
+    theme_minimal(base_size = 13)
+
+  rmse_long <- error_table |>
+    select(Horizon, RMSE_base, RMSE_alt) |>
+    rename(!!labels[1] := RMSE_base, !!labels[2] := RMSE_alt) |>
+    pivot_longer(-Horizon, names_to = "Model", values_to = "RMSE")
+
+  p_rmse <- ggplot(rmse_long, aes(x = Horizon, y = RMSE, color = Model)) +
+    geom_line(linewidth = 1) + geom_point(size = 1.8) +
+    labs(title = "RMSE Comparison (1..12 steps)",
+         x = "Forecast Horizon (months ahead)", y = "RMSE", color = "Models") +
+    scale_color_manual(values = c("#E74C3C", "#2E86C1")) +
+    theme_minimal(base_size = 13)
+
+  list(table = error_table, plot_mae = p_mae, plot_rmse = p_rmse)
+}
+
+compare_two_models_seasonal_1_vs_s <- function(y, fit_base, fit_alt,
+                                               labels = c("Baseline","Alternative"),
+                                               s = 12) {
+  stopifnot(frequency(y) == s)
+  fc_fun_b <- function(x, h) forecast(fit_base(x), h = h)
+  fc_fun_a <- function(x, h) forecast(fit_alt(x),  h = h)
+
+  e1_b <- tsCV(y, forecastfunction = fc_fun_b, h = 1)
+  es_b <- tsCV(y, forecastfunction = fc_fun_b, h = s)
+  e1_a <- tsCV(y, forecastfunction = fc_fun_a, h = 1)
+  es_a <- tsCV(y, forecastfunction = fc_fun_a, h = s)
+
+  metr <- function(e) c(MAE = mean(abs(e), na.rm = TRUE),
+                        RMSE = sqrt(mean(e^2, na.rm = TRUE)))
+  out <- tibble(
+    Horizon = factor(c("1-step","s-step"), levels = c("1-step","s-step")),
+    MAE_base  = c(metr(e1_b)["MAE"],  metr(es_b)["MAE"]),
+    MAE_alt   = c(metr(e1_a)["MAE"],  metr(es_a)["MAE"]),
+    RMSE_base = c(metr(e1_b)["RMSE"], metr(es_b)["RMSE"]),
+    RMSE_alt  = c(metr(e1_a)["RMSE"], metr(es_a)["RMSE"])
+  )
+
+  mae_long <- out |>
+    select(Horizon, MAE_base, MAE_alt) |>
+    rename(!!labels[1] := MAE_base, !!labels[2] := MAE_alt) |>
+    pivot_longer(-Horizon, names_to = "Model", values_to = "MAE")
+
+  p_mae <- ggplot(mae_long, aes(x = Horizon, y = MAE, color = Model, group = Model)) +
+    geom_line(linewidth = 1) + geom_point(size = 2) +
+    labs(title = "Seasonal CV — MAE (1-step vs s-step)", x = NULL, y = "MAE", color = "Models") +
+    scale_color_manual(values = c("#E74C3C", "#2E86C1")) +
+    theme_minimal(base_size = 12)
+
+  rmse_long <- out |>
+    select(Horizon, RMSE_base, RMSE_alt) |>
+    rename(!!labels[1] := RMSE_base, !!labels[2] := RMSE_alt) |>
+    pivot_longer(-Horizon, names_to = "Model", values_to = "RMSE")
+
+  p_rmse <- ggplot(rmse_long, aes(x = Horizon, y = RMSE, color = Model, group = Model)) +
+    geom_line(linewidth = 1) + geom_point(size = 2) +
+    labs(title = "Seasonal CV — RMSE (1-step vs s-step)", x = NULL, y = "RMSE", color = "Models") +
+    scale_color_manual(values = c("#E74C3C", "#2E86C1")) +
+    theme_minimal(base_size = 12)
+
+  list(table = out, plot_mae = p_mae, plot_rmse = p_rmse)
+}
+
+
+s <- 12
+
+fit_export_baseline <- function(x) Arima(x, order = c(0,1,1),
+                                         seasonal = list(order = c(0,1,1), period = s),
+                                         include.drift = FALSE)     
+
+fit_export_alt      <- function(x) Arima(x, order = c(0,1,3),
+                                         seasonal = list(order = c(0,0,1), period = s),
+                                         include.drift = TRUE)     
+
+fit_house_baseline  <- function(x) Arima(x, order = c(1,1,2),
+                                         seasonal = list(order = c(0,1,1), period = s),
+                                         include.drift = FALSE)     
+fit_house_alt       <- function(x) Arima(x, order = c(1,1,2),
+                                         seasonal = list(order = c(0,0,2), period = s),
+                                         include.drift = TRUE)     
+
+
+# this is for import only
+
+sarima_seasonal_cv_1_vs_s <- function(y, fit_fun, s = frequency(y)) {
+  stopifnot(frequency(y) == s)
+
+  fc_fun <- function(x, h) forecast(fit_fun(x), h = h)
+
+  e1 <- tsCV(y, forecastfunction = fc_fun, h = 1)
+  es <- tsCV(y, forecastfunction = fc_fun, h = s)
+
+  metr <- function(e, y, s) {
+    data.frame(
+      MAE   = mean(abs(e), na.rm = TRUE),
+      RMSE  = sqrt(mean(e^2, na.rm = TRUE)),
+      MASE1 = mean(abs(e), na.rm = TRUE) / mean(abs(diff(y, lag = 1)),  na.rm = TRUE),
+      MASEs = mean(abs(e), na.rm = TRUE) / mean(abs(diff(y, lag = s)),  na.rm = TRUE),
+      sMAPE = mean(200 * abs(e) / (abs(y) + abs(y - e)), na.rm = TRUE)
+    )
+  }
+
+  dplyr::bind_rows(
+    cbind(Horizon = "1-step",        metr(e1, y, s)),
+    cbind(Horizon = paste0(s, "-step"), metr(es, y, s))
+  )
+}
+
+plot_two_lines_mae_rmse <- function(cv_summary, title = "Seasonal CV: 1 vs s") {
+  df_long <- cv_summary %>%
+    dplyr::select(Horizon, MAE, RMSE) %>%
+    tidyr::pivot_longer(c(MAE, RMSE), names_to = "Metric", values_to = "Value")
+
+  ggplot(df_long, aes(x = Horizon, y = Value, color = Metric, group = Metric)) +
+    geom_line(linewidth = 1) +
+    geom_point(size = 2) +
+    labs(title = title, x = NULL, y = "Error", color = NULL) +
+    theme_minimal(base_size = 12)
+}
+```
+
+
+
+::: panel-tabset
+
+### Trade import South korea vs USA
+
+```{r}
+fit_import_mine <- function(x) Arima(
+  x,
+  order   = c(0,1,2),
+  seasonal= list(order = c(0,1,1), period = 12),
+  include.drift = TRUE
+)
+
+cv_imp <- sarima_seasonal_cv_1_vs_s(import_ts, fit_import_mine, s = 12)
+
+kable(cv_imp, digits = 4,
+      caption = "Imports: Seasonal CV (1-step vs 12-step(s)) :ARIMA(0,1,2)(0,1,1)[12]  ") %>%
+  kable_styling(full_width = FALSE,
+                bootstrap_options = c("striped","hover","condensed","responsive"))
+
+print( plot_two_lines_mae_rmse(cv_imp, "Imports — MAE & RMSE (1 vs 12)") )
+
+
+```
+
+
+### Trade export South korea vs USA
+
+```{r,message= F,warning= F}
+res_exp <- compare_two_models_fixedk(
+  y = export_ts,
+  fit_base = fit_export_baseline,
+  fit_alt  = fit_export_alt,
+  labels   = c("export model : ARIMA(0,1,1)(0,1,1)[12]", "export model : ARIMA(0,1,3)(0,0,1)[12]"),
+  k = 120, s = 12, h = 12
+)
+kable(res_exp$table[, c("Horizon","MAE_base","MAE_alt","RMSE_base","RMSE_alt")],
+      digits = 4, caption = "Exports — Horizon-wise errors (1..12)") |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped","hover","condensed","responsive"))
+print(res_exp$plot_mae); print(res_exp$plot_rmse)
+
+
+```
+
+
+### Seoul housing price index 
+
+```{r,message= F,warning= F}
+
+res_house <- compare_two_models_fixedk(
+  y = house_ts,
+  fit_base = fit_house_baseline,
+  fit_alt  = fit_house_alt,
+  labels   = c("house index Model:ARIMA(1,1,2)(0,1,1)[12]  ", "house index Model:ARIMA(1,1,2)(0,0,2)[12]"),
+  k = 120, s = 12, h = 12
+)
+kable(res_house$table[, c("Horizon","MAE_base","MAE_alt","RMSE_base","RMSE_alt")],
+      digits = 4, caption = "Seoul HPI — Horizon-wise errors (1..12)") |>
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped","hover","condensed","responsive"))
+print(res_house$plot_mae); print(res_house$plot_rmse)
+```
+
+:::
 
 
 
