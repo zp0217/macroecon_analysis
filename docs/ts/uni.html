@@ -233,9 +233,13 @@ window.Quarto = {
   <ul class="collapse">
   <li><a href="#acf-pacf-plot-for-seasonal-data" id="toc-acf-pacf-plot-for-seasonal-data" class="nav-link" data-scroll-target="#acf-pacf-plot-for-seasonal-data">ACF &amp; PACF plot for seasonal data</a></li>
   <li><a href="#sarima-utility-function" id="toc-sarima-utility-function" class="nav-link" data-scroll-target="#sarima-utility-function">SARIMA utility function</a></li>
+  <li><a href="#model-choicewith-equation" id="toc-model-choicewith-equation" class="nav-link" data-scroll-target="#model-choicewith-equation">Model choice(with equation)</a></li>
   </ul></li>
   <li><a href="#model-diagnostics" id="toc-model-diagnostics" class="nav-link" data-scroll-target="#model-diagnostics">Model diagnostics</a></li>
-  <li><a href="#auto.arima" id="toc-auto.arima" class="nav-link" data-scroll-target="#auto.arima">AUTO.ARIMA</a></li>
+  <li><a href="#auto.arima" id="toc-auto.arima" class="nav-link" data-scroll-target="#auto.arima">AUTO.ARIMA</a>
+  <ul class="collapse">
+  <li><a href="#discrepancy-between-model-selection-process-and-auto.arima" id="toc-discrepancy-between-model-selection-process-and-auto.arima" class="nav-link" data-scroll-target="#discrepancy-between-model-selection-process-and-auto.arima">discrepancy between model selection process and auto.arima</a></li>
+  </ul></li>
   <li><a href="#forecasting" id="toc-forecasting" class="nav-link" data-scroll-target="#forecasting">Forecasting</a></li>
   <li><a href="#benchmark" id="toc-benchmark" class="nav-link" data-scroll-target="#benchmark">Benchmark</a>
   <ul class="collapse">
@@ -272,8 +276,21 @@ window.Quarto = {
 </header>
 
 
-<section id="package-needed" class="level1">
-<h1>package needed</h1>
+<div class="callout callout-style-simple callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>In the EDA part, there is stationary observed from ACF and PACF plot except seoul housing index. Also ADF test(after differencing) confirms this with significant low p-value. To check further specifically seoul housing index, first part of this section is performing second order differencing.</p>
+</div>
+</div>
+<section id="package-needed" class="level3">
+<h3 class="anchored" data-anchor-id="package-needed">package needed</h3>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
@@ -353,87 +370,73 @@ window.Quarto = {
 <span id="cb1-74"><a href="#cb1-74" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-75"><a href="#cb1-75" aria-hidden="true" tabindex="-1"></a><span class="co"># Seoul housing data</span></span>
 <span id="cb1-76"><a href="#cb1-76" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-77"><a href="#cb1-77" aria-hidden="true" tabindex="-1"></a>housing <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="fu">here</span>(<span class="st">"data/housing/seoul_housing.csv"</span>), <span class="at">skip =</span> <span class="dv">3</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb1-78"><a href="#cb1-78" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="at">Date =</span> <span class="st">`</span><span class="at">TIME_PERIOD:Period</span><span class="st">`</span>, <span class="at">housing =</span> <span class="st">`</span><span class="at">OBS_VALUE:Value</span><span class="st">`</span>)<span class="sc">%&gt;%</span></span>
-<span id="cb1-79"><a href="#cb1-79" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">Date =</span> <span class="fu">as.Date</span>(Date))</span>
-<span id="cb1-80"><a href="#cb1-80" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-81"><a href="#cb1-81" aria-hidden="true" tabindex="-1"></a>housing <span class="ot">&lt;-</span> housing <span class="sc">%&gt;%</span> <span class="fu">mutate</span>(<span class="at">Date =</span> <span class="fu">as.Date</span>(Date))</span>
+<span id="cb1-77"><a href="#cb1-77" aria-hidden="true" tabindex="-1"></a>housing <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="fu">here</span>(<span class="st">"data/housing/house.csv"</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb1-78"><a href="#cb1-78" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">Date =</span> <span class="fu">as.Date</span>(Date))</span>
+<span id="cb1-79"><a href="#cb1-79" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-80"><a href="#cb1-80" aria-hidden="true" tabindex="-1"></a>housing <span class="ot">&lt;-</span> housing <span class="sc">%&gt;%</span> <span class="fu">mutate</span>(<span class="at">Date =</span> <span class="fu">as.Date</span>(Date))</span>
+<span id="cb1-81"><a href="#cb1-81" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-82"><a href="#cb1-82" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-83"><a href="#cb1-83" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-84"><a href="#cb1-84" aria-hidden="true" tabindex="-1"></a><span class="co"># Yield data </span></span>
-<span id="cb1-85"><a href="#cb1-85" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-86"><a href="#cb1-86" aria-hidden="true" tabindex="-1"></a>us_yield  <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="fu">here</span>(<span class="st">"data/yield"</span>, <span class="st">"us_yield.csv"</span>))</span>
-<span id="cb1-87"><a href="#cb1-87" aria-hidden="true" tabindex="-1"></a>kor_yield   <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="fu">here</span>(<span class="st">"data/yield"</span>, <span class="st">"kor_yield.csv"</span>))</span>
+<span id="cb1-83"><a href="#cb1-83" aria-hidden="true" tabindex="-1"></a><span class="co"># Yield data </span></span>
+<span id="cb1-84"><a href="#cb1-84" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-85"><a href="#cb1-85" aria-hidden="true" tabindex="-1"></a>us_yield  <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="fu">here</span>(<span class="st">"data/yield"</span>, <span class="st">"us_yield.csv"</span>))</span>
+<span id="cb1-86"><a href="#cb1-86" aria-hidden="true" tabindex="-1"></a>kor_yield   <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="fu">here</span>(<span class="st">"data/yield"</span>, <span class="st">"kor_yield.csv"</span>))</span>
+<span id="cb1-87"><a href="#cb1-87" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-88"><a href="#cb1-88" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-89"><a href="#cb1-89" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-90"><a href="#cb1-90" aria-hidden="true" tabindex="-1"></a>us_yield<span class="sc">$</span>Date  <span class="ot">&lt;-</span> <span class="fu">as.Date</span>(us_yield<span class="sc">$</span>Date)</span>
-<span id="cb1-91"><a href="#cb1-91" aria-hidden="true" tabindex="-1"></a>kor_yield<span class="sc">$</span>Date <span class="ot">&lt;-</span> <span class="fu">as.Date</span>(kor_yield<span class="sc">$</span>Date)</span>
-<span id="cb1-92"><a href="#cb1-92" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-93"><a href="#cb1-93" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(us_yield)[<span class="fu">colnames</span>(us_yield)  <span class="sc">==</span> <span class="st">"X3Y"</span>]  <span class="ot">&lt;-</span> <span class="st">"US_3Y"</span></span>
-<span id="cb1-94"><a href="#cb1-94" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(us_yield)[<span class="fu">colnames</span>(us_yield)  <span class="sc">==</span> <span class="st">"X10Y"</span>] <span class="ot">&lt;-</span> <span class="st">"US_10Y"</span></span>
-<span id="cb1-95"><a href="#cb1-95" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(kor_yield)[<span class="fu">colnames</span>(kor_yield) <span class="sc">==</span> <span class="st">"X3Y"</span>]  <span class="ot">&lt;-</span> <span class="st">"KR_3Y"</span></span>
-<span id="cb1-96"><a href="#cb1-96" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(kor_yield)[<span class="fu">colnames</span>(kor_yield) <span class="sc">==</span> <span class="st">"X10Y"</span>] <span class="ot">&lt;-</span> <span class="st">"KR_10Y"</span></span>
-<span id="cb1-97"><a href="#cb1-97" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-98"><a href="#cb1-98" aria-hidden="true" tabindex="-1"></a>us_yield  <span class="ot">&lt;-</span> us_yield[,  <span class="fu">c</span>(<span class="st">"Date"</span>, <span class="st">"US_3Y"</span>, <span class="st">"US_10Y"</span>)]</span>
-<span id="cb1-99"><a href="#cb1-99" aria-hidden="true" tabindex="-1"></a>kor_yield <span class="ot">&lt;-</span> kor_yield[, <span class="fu">c</span>(<span class="st">"Date"</span>, <span class="st">"KR_3Y"</span>, <span class="st">"KR_10Y"</span>)]</span>
-<span id="cb1-100"><a href="#cb1-100" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-101"><a href="#cb1-101" aria-hidden="true" tabindex="-1"></a>us_yield  <span class="ot">&lt;-</span> us_yield  <span class="sc">%&gt;%</span> <span class="fu">arrange</span>(Date) <span class="sc">%&gt;%</span> <span class="fu">fill</span>(US_3Y, US_10Y, <span class="at">.direction =</span> <span class="st">"down"</span>)</span>
-<span id="cb1-102"><a href="#cb1-102" aria-hidden="true" tabindex="-1"></a>kor_yield <span class="ot">&lt;-</span> kor_yield <span class="sc">%&gt;%</span> <span class="fu">arrange</span>(Date) <span class="sc">%&gt;%</span> <span class="fu">fill</span>(KR_3Y, KR_10Y, <span class="at">.direction =</span> <span class="st">"down"</span>)</span>
+<span id="cb1-89"><a href="#cb1-89" aria-hidden="true" tabindex="-1"></a>us_yield<span class="sc">$</span>Date  <span class="ot">&lt;-</span> <span class="fu">as.Date</span>(us_yield<span class="sc">$</span>Date)</span>
+<span id="cb1-90"><a href="#cb1-90" aria-hidden="true" tabindex="-1"></a>kor_yield<span class="sc">$</span>Date <span class="ot">&lt;-</span> <span class="fu">as.Date</span>(kor_yield<span class="sc">$</span>Date)</span>
+<span id="cb1-91"><a href="#cb1-91" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-92"><a href="#cb1-92" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(us_yield)[<span class="fu">colnames</span>(us_yield)  <span class="sc">==</span> <span class="st">"X3Y"</span>]  <span class="ot">&lt;-</span> <span class="st">"US_3Y"</span></span>
+<span id="cb1-93"><a href="#cb1-93" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(us_yield)[<span class="fu">colnames</span>(us_yield)  <span class="sc">==</span> <span class="st">"X10Y"</span>] <span class="ot">&lt;-</span> <span class="st">"US_10Y"</span></span>
+<span id="cb1-94"><a href="#cb1-94" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(kor_yield)[<span class="fu">colnames</span>(kor_yield) <span class="sc">==</span> <span class="st">"X3Y"</span>]  <span class="ot">&lt;-</span> <span class="st">"KR_3Y"</span></span>
+<span id="cb1-95"><a href="#cb1-95" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(kor_yield)[<span class="fu">colnames</span>(kor_yield) <span class="sc">==</span> <span class="st">"X10Y"</span>] <span class="ot">&lt;-</span> <span class="st">"KR_10Y"</span></span>
+<span id="cb1-96"><a href="#cb1-96" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-97"><a href="#cb1-97" aria-hidden="true" tabindex="-1"></a>us_yield  <span class="ot">&lt;-</span> us_yield[,  <span class="fu">c</span>(<span class="st">"Date"</span>, <span class="st">"US_3Y"</span>, <span class="st">"US_10Y"</span>)]</span>
+<span id="cb1-98"><a href="#cb1-98" aria-hidden="true" tabindex="-1"></a>kor_yield <span class="ot">&lt;-</span> kor_yield[, <span class="fu">c</span>(<span class="st">"Date"</span>, <span class="st">"KR_3Y"</span>, <span class="st">"KR_10Y"</span>)]</span>
+<span id="cb1-99"><a href="#cb1-99" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-100"><a href="#cb1-100" aria-hidden="true" tabindex="-1"></a>us_yield  <span class="ot">&lt;-</span> us_yield  <span class="sc">%&gt;%</span> <span class="fu">arrange</span>(Date) <span class="sc">%&gt;%</span> <span class="fu">fill</span>(US_3Y, US_10Y, <span class="at">.direction =</span> <span class="st">"down"</span>)</span>
+<span id="cb1-101"><a href="#cb1-101" aria-hidden="true" tabindex="-1"></a>kor_yield <span class="ot">&lt;-</span> kor_yield <span class="sc">%&gt;%</span> <span class="fu">arrange</span>(Date) <span class="sc">%&gt;%</span> <span class="fu">fill</span>(KR_3Y, KR_10Y, <span class="at">.direction =</span> <span class="st">"down"</span>)</span>
+<span id="cb1-102"><a href="#cb1-102" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-103"><a href="#cb1-103" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-104"><a href="#cb1-104" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-105"><a href="#cb1-105" aria-hidden="true" tabindex="-1"></a>df <span class="ot">&lt;-</span> <span class="fu">merge</span>(us_yield, kor_yield, <span class="at">by =</span> <span class="st">"Date"</span>)</span>
-<span id="cb1-106"><a href="#cb1-106" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-107"><a href="#cb1-107" aria-hidden="true" tabindex="-1"></a>df<span class="sc">$</span>US_3m10  <span class="ot">&lt;-</span> df<span class="sc">$</span>US_3Y <span class="sc">-</span> df<span class="sc">$</span>US_10Y</span>
-<span id="cb1-108"><a href="#cb1-108" aria-hidden="true" tabindex="-1"></a>df<span class="sc">$</span>KR_3m10  <span class="ot">&lt;-</span> df<span class="sc">$</span>KR_3Y <span class="sc">-</span> df<span class="sc">$</span>KR_10Y</span>
-<span id="cb1-109"><a href="#cb1-109" aria-hidden="true" tabindex="-1"></a>df<span class="sc">$</span>US_KR_3Y <span class="ot">&lt;-</span> df<span class="sc">$</span>US_3Y <span class="sc">-</span> df<span class="sc">$</span>KR_3Y</span>
-<span id="cb1-110"><a href="#cb1-110" aria-hidden="true" tabindex="-1"></a>df<span class="sc">$</span>US_KR_10Y<span class="ot">&lt;-</span> df<span class="sc">$</span>US_10Y <span class="sc">-</span> df<span class="sc">$</span>KR_10Y</span>
+<span id="cb1-104"><a href="#cb1-104" aria-hidden="true" tabindex="-1"></a>df <span class="ot">&lt;-</span> <span class="fu">merge</span>(us_yield, kor_yield, <span class="at">by =</span> <span class="st">"Date"</span>)</span>
+<span id="cb1-105"><a href="#cb1-105" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-106"><a href="#cb1-106" aria-hidden="true" tabindex="-1"></a>df<span class="sc">$</span>US_3m10  <span class="ot">&lt;-</span> df<span class="sc">$</span>US_3Y <span class="sc">-</span> df<span class="sc">$</span>US_10Y</span>
+<span id="cb1-107"><a href="#cb1-107" aria-hidden="true" tabindex="-1"></a>df<span class="sc">$</span>KR_3m10  <span class="ot">&lt;-</span> df<span class="sc">$</span>KR_3Y <span class="sc">-</span> df<span class="sc">$</span>KR_10Y</span>
+<span id="cb1-108"><a href="#cb1-108" aria-hidden="true" tabindex="-1"></a>df<span class="sc">$</span>US_KR_3Y <span class="ot">&lt;-</span> df<span class="sc">$</span>US_3Y <span class="sc">-</span> df<span class="sc">$</span>KR_3Y</span>
+<span id="cb1-109"><a href="#cb1-109" aria-hidden="true" tabindex="-1"></a>df<span class="sc">$</span>US_KR_10Y<span class="ot">&lt;-</span> df<span class="sc">$</span>US_10Y <span class="sc">-</span> df<span class="sc">$</span>KR_10Y</span>
+<span id="cb1-110"><a href="#cb1-110" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-111"><a href="#cb1-111" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-112"><a href="#cb1-112" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-113"><a href="#cb1-113" aria-hidden="true" tabindex="-1"></a><span class="co">#import &amp; export data </span></span>
-<span id="cb1-114"><a href="#cb1-114" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-115"><a href="#cb1-115" aria-hidden="true" tabindex="-1"></a>imports <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/trade"</span>, <span class="st">"imports.csv"</span>))</span>
-<span id="cb1-116"><a href="#cb1-116" aria-hidden="true" tabindex="-1"></a>exports <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/trade"</span>, <span class="st">"exports.csv"</span>))</span>
-<span id="cb1-117"><a href="#cb1-117" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-118"><a href="#cb1-118" aria-hidden="true" tabindex="-1"></a>clean_date <span class="ot">&lt;-</span> <span class="cf">function</span>(x) {</span>
-<span id="cb1-119"><a href="#cb1-119" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.Date</span>(<span class="fu">paste0</span>(<span class="fu">sub</span>(<span class="st">"^([0-9]{4})([0-9]{2})$"</span>, <span class="st">"</span><span class="sc">\\</span><span class="st">1-</span><span class="sc">\\</span><span class="st">2"</span>, <span class="fu">gsub</span>(<span class="st">"/"</span>, <span class="st">"-"</span>, <span class="fu">as.character</span>(x))), <span class="st">"-01"</span>))</span>
-<span id="cb1-120"><a href="#cb1-120" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb1-121"><a href="#cb1-121" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-122"><a href="#cb1-122" aria-hidden="true" tabindex="-1"></a>imports <span class="ot">&lt;-</span> imports <span class="sc">%&gt;%</span></span>
-<span id="cb1-123"><a href="#cb1-123" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">Date =</span> <span class="fu">clean_date</span>(Date),</span>
-<span id="cb1-124"><a href="#cb1-124" aria-hidden="true" tabindex="-1"></a>         <span class="at">Type =</span> <span class="st">"Imports"</span>)</span>
-<span id="cb1-125"><a href="#cb1-125" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-126"><a href="#cb1-126" aria-hidden="true" tabindex="-1"></a>exports <span class="ot">&lt;-</span> exports <span class="sc">%&gt;%</span></span>
-<span id="cb1-127"><a href="#cb1-127" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">Date =</span> <span class="fu">clean_date</span>(Date),</span>
-<span id="cb1-128"><a href="#cb1-128" aria-hidden="true" tabindex="-1"></a>         <span class="at">Type =</span> <span class="st">"Exports"</span>)</span>
-<span id="cb1-129"><a href="#cb1-129" aria-hidden="true" tabindex="-1"></a>trade <span class="ot">&lt;-</span> <span class="fu">bind_rows</span>(imports, exports)</span>
-<span id="cb1-130"><a href="#cb1-130" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-131"><a href="#cb1-131" aria-hidden="true" tabindex="-1"></a><span class="fu">names</span>(trade)[<span class="dv">2</span>] <span class="ot">&lt;-</span> <span class="st">"Value"</span></span>
-<span id="cb1-132"><a href="#cb1-132" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-133"><a href="#cb1-133" aria-hidden="true" tabindex="-1"></a>trade_ts <span class="ot">&lt;-</span> trade <span class="sc">%&gt;%</span></span>
-<span id="cb1-134"><a href="#cb1-134" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as_tsibble</span>(<span class="at">index =</span> Date, <span class="at">key =</span> Type)</span>
+<span id="cb1-112"><a href="#cb1-112" aria-hidden="true" tabindex="-1"></a><span class="co">#import &amp; export data </span></span>
+<span id="cb1-113"><a href="#cb1-113" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-114"><a href="#cb1-114" aria-hidden="true" tabindex="-1"></a>imports <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/trade"</span>, <span class="st">"imports.csv"</span>))</span>
+<span id="cb1-115"><a href="#cb1-115" aria-hidden="true" tabindex="-1"></a>exports <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/trade"</span>, <span class="st">"exports.csv"</span>))</span>
+<span id="cb1-116"><a href="#cb1-116" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-117"><a href="#cb1-117" aria-hidden="true" tabindex="-1"></a>clean_date <span class="ot">&lt;-</span> <span class="cf">function</span>(x) {</span>
+<span id="cb1-118"><a href="#cb1-118" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.Date</span>(<span class="fu">paste0</span>(<span class="fu">sub</span>(<span class="st">"^([0-9]{4})([0-9]{2})$"</span>, <span class="st">"</span><span class="sc">\\</span><span class="st">1-</span><span class="sc">\\</span><span class="st">2"</span>, <span class="fu">gsub</span>(<span class="st">"/"</span>, <span class="st">"-"</span>, <span class="fu">as.character</span>(x))), <span class="st">"-01"</span>))</span>
+<span id="cb1-119"><a href="#cb1-119" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb1-120"><a href="#cb1-120" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-121"><a href="#cb1-121" aria-hidden="true" tabindex="-1"></a>imports <span class="ot">&lt;-</span> imports <span class="sc">%&gt;%</span></span>
+<span id="cb1-122"><a href="#cb1-122" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">Date =</span> <span class="fu">clean_date</span>(Date),</span>
+<span id="cb1-123"><a href="#cb1-123" aria-hidden="true" tabindex="-1"></a>         <span class="at">Type =</span> <span class="st">"Imports"</span>)</span>
+<span id="cb1-124"><a href="#cb1-124" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-125"><a href="#cb1-125" aria-hidden="true" tabindex="-1"></a>exports <span class="ot">&lt;-</span> exports <span class="sc">%&gt;%</span></span>
+<span id="cb1-126"><a href="#cb1-126" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">Date =</span> <span class="fu">clean_date</span>(Date),</span>
+<span id="cb1-127"><a href="#cb1-127" aria-hidden="true" tabindex="-1"></a>         <span class="at">Type =</span> <span class="st">"Exports"</span>)</span>
+<span id="cb1-128"><a href="#cb1-128" aria-hidden="true" tabindex="-1"></a>trade <span class="ot">&lt;-</span> <span class="fu">bind_rows</span>(imports, exports)</span>
+<span id="cb1-129"><a href="#cb1-129" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-130"><a href="#cb1-130" aria-hidden="true" tabindex="-1"></a><span class="fu">names</span>(trade)[<span class="dv">2</span>] <span class="ot">&lt;-</span> <span class="st">"Value"</span></span>
+<span id="cb1-131"><a href="#cb1-131" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-132"><a href="#cb1-132" aria-hidden="true" tabindex="-1"></a>trade_ts <span class="ot">&lt;-</span> trade <span class="sc">%&gt;%</span></span>
+<span id="cb1-133"><a href="#cb1-133" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as_tsibble</span>(<span class="at">index =</span> Date, <span class="at">key =</span> Type)</span>
+<span id="cb1-134"><a href="#cb1-134" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-135"><a href="#cb1-135" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-136"><a href="#cb1-136" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-137"><a href="#cb1-137" aria-hidden="true" tabindex="-1"></a><span class="co"># S&amp;P500 data</span></span>
-<span id="cb1-138"><a href="#cb1-138" aria-hidden="true" tabindex="-1"></a>sp500 <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"../data/stock/sp500.csv"</span>)</span>
+<span id="cb1-136"><a href="#cb1-136" aria-hidden="true" tabindex="-1"></a><span class="co"># S&amp;P500 data</span></span>
+<span id="cb1-137"><a href="#cb1-137" aria-hidden="true" tabindex="-1"></a>sp500 <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"../data/stock/sp500.csv"</span>)</span>
+<span id="cb1-138"><a href="#cb1-138" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-139"><a href="#cb1-139" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-140"><a href="#cb1-140" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-141"><a href="#cb1-141" aria-hidden="true" tabindex="-1"></a><span class="co"># KOSPI data</span></span>
-<span id="cb1-142"><a href="#cb1-142" aria-hidden="true" tabindex="-1"></a>kospi <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"../data/stock/kospi.csv"</span>)</span>
-<span id="cb1-143"><a href="#cb1-143" aria-hidden="true" tabindex="-1"></a>kospi<span class="sc">$</span>Date <span class="ot">&lt;-</span> <span class="fu">as.Date</span>(kospi<span class="sc">$</span>Date)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-140"><a href="#cb1-140" aria-hidden="true" tabindex="-1"></a><span class="co"># KOSPI data</span></span>
+<span id="cb1-141"><a href="#cb1-141" aria-hidden="true" tabindex="-1"></a>kospi <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"../data/stock/kospi.csv"</span>)</span>
+<span id="cb1-142"><a href="#cb1-142" aria-hidden="true" tabindex="-1"></a>kospi<span class="sc">$</span>Date <span class="ot">&lt;-</span> <span class="fu">as.Date</span>(kospi<span class="sc">$</span>Date)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
-</div>
-<div class="callout callout-style-simple callout-note callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-note
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>In the EDA part, there is stationary observed from ACF and PACF plot except seoul housing index. Also ADF test(after differencing) confirms this with significant low p-value.</p>
-</div>
 </div>
 </section>
 <section id="differencing" class="level1">
@@ -3248,6 +3251,80 @@ Equation:\; (1 - 0.7799B)(1 - B)(1 - B^{12})x_t = (1 + 0.2868B + 0.1734B^2)(1 - 
 </div>
 </div>
 </section>
+<section id="model-choicewith-equation" class="level2">
+<h2 class="anchored" data-anchor-id="model-choicewith-equation">Model choice(with equation)</h2>
+<ul>
+<li>South korea base rate</li>
+</ul>
+<p>Model : ARIMA(0,1,1)</p>
+<p><span class="math display">\[
+Equation: x_t = 1.0000x_{t-1} + w_t + 0.0161w_{t-1}
+\]</span></p>
+<ul>
+<li>Federal reserve rate</li>
+</ul>
+<p>Model: ARIMA(1,1,0)</p>
+<p><span class="math display">\[
+Equation:\; x_t = x_{t-1} + 0.6987(x_{t-1} - x_{t-2}) + 0.0229 + w_t
+\]</span></p>
+<ul>
+<li>KRW/USD FX rate</li>
+</ul>
+<p>Model: ARIMA(1,0,1)</p>
+<p><span class="math display">\[
+Equation:\; x_t = 0.9997x_{t-1} + w_t + 0.0165w_{t-1} + 0.0011
+\]</span></p>
+<ul>
+<li>USA &amp; South Korea yield spread rate(10Y)</li>
+</ul>
+<p>Model : ARIMA(1,0,1)</p>
+<p><span class="math display">\[
+Equation:\; x_t = 0.9968x_{t-1} + w_t - 0.0896w_{t-1} - 0.7027
+\]</span></p>
+<ul>
+<li>USD index</li>
+</ul>
+<p>Model: ARIMA(1,0,0)</p>
+<p><span class="math display">\[
+Equation:\; x_t = 0.9997x_{t-1} + 4.5713 + w_t
+\]</span></p>
+<ul>
+<li>S&amp;P500 index</li>
+</ul>
+<p>Model: ARIMA(0,1,1)</p>
+<p><span class="math display">\[
+Equation:\; x_t = x_{t-1} + 0.0003 + w_t - 0.0802w_{t-1}
+\]</span></p>
+<ul>
+<li>KOSPI index</li>
+</ul>
+<p>Model : ARIMA(0,1,2)</p>
+<p><span class="math display">\[
+Equation:\; x_t = x_{t-1} + 0.0000 + w_t + 0.0258w_{t-1} - 0.0214w_{t-2}
+\]</span></p>
+<ul>
+<li>Trade import South korea vs USA Model</li>
+</ul>
+<p>SARIMA(0,1,2)(0,1,1)[12]</p>
+<p><span class="math display">\[
+Equation:\; (1 - B)(1 - B^{12})x_t = (1 - 0.5291B + 0.1363B^2)(1 - 0.9351B^{12})w_t
+\]</span></p>
+<ul>
+<li>Trade import South korea vs USA</li>
+</ul>
+<p>Model : SARIMA(0,1,1)(0,1,1)[12]</p>
+<p><span class="math display">\[
+Model : SARIMA(0,1,1)(0,1,1)[12] \
+Equation:\; (1 - B)(1 - B^{12})x_t = (1 - 0.5536B)(1 - 0.8441B^{12})w_t
+\]</span></p>
+<ul>
+<li>Seoul housing property index</li>
+</ul>
+<p>Model : SARIMA(1,1,2)(0,1,1)[12]</p>
+<p><span class="math display">\[
+Equation:\; (1 - 0.7799B)(1 - B)(1 - B^{12})x_t = (1 + 0.2868B + 0.1734B^2)(1 - 0.9998B^{12})w_t
+\]</span></p>
+</section>
 </section>
 <section id="model-diagnostics" class="level1">
 <h1>Model diagnostics</h1>
@@ -3268,6 +3345,7 @@ Equation:\; (1 - 0.7799B)(1 - B)(1 - B^{12})x_t = (1 + 0.2868B + 0.1734B^2)(1 - 
 </div>
 </div>
 </div>
+<p>The residual diagnostics for the ARIMA(0,1,1) model indicate a fairly good fit. The standardized residuals fluctuate randomly around zero, suggesting the mean of the residuals is stable over time. However there are outlier times for example around 2019 and 2025 Q1. The ACF plot shows no significant spikes beyond the 95% confidence limits, implying that the residuals are uncorrelated and behave like white noise. The Q–Q plot of standardized residuals is mostly linear, though with slight deviations at the tails, indicating mild non-normality. The Ljung–Box test p-values remain above 0.05 across lags, confirming that there is no significant autocorrelation left in the residuals.</p>
 </div>
 <div id="tabset-5-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-5-2-tab">
 <div class="cell">
@@ -3283,6 +3361,7 @@ Equation:\; (1 - 0.7799B)(1 - B)(1 - B^{12})x_t = (1 + 0.2868B + 0.1734B^2)(1 - 
 </div>
 </div>
 </div>
+<p>The residuals from the ARIMA(1,1,0) model are well-behaved and largely centered around zero, with only a few spikes visible around 2009 and 2020. The ACF plot reveals no substantial autocorrelation at any lag, supporting the conclusion that the residuals are random and independent. The Q–Q plot demonstrates a near-linear relationship between sample and theoretical quantiles, except for small departures at both ends of the distribution, which suggests slight heavy-tailed behavior. The Ljung–Box p-values mostly exceed 0.05, indicating the residuals are effectively white noise. This model performs well and adequately represents the time series dynamics, with minimal room for improvement.</p>
 </div>
 <div id="tabset-5-3" class="tab-pane" role="tabpanel" aria-labelledby="tabset-5-3-tab">
 <div class="cell">
@@ -3298,6 +3377,7 @@ Equation:\; (1 - 0.7799B)(1 - B)(1 - B^{12})x_t = (1 + 0.2868B + 0.1734B^2)(1 - 
 </div>
 </div>
 </div>
+<p>For the ARMA(1,0,1) model, the residuals fluctuate around zero but exhibit slightly higher volatility than desired, particularly during certain time intervals. The ACF of the residuals shows weak but visible autocorrelation at the first few lags. The Q–Q plot displays substantial deviation from the 45-degree line in the tails, implying the presence of heavy tails and possible outliers, showing non-linearity. The Ljung–Box test results show a few p-values below the 0.05 threshold, which further indicates some remaining structure in the residuals. In summary, while the model fits decently, it may not fully capture the short-term autocorrelation and could benefit from a slightly more complex specification.</p>
 </div>
 <div id="tabset-5-4" class="tab-pane" role="tabpanel" aria-labelledby="tabset-5-4-tab">
 <div class="cell">
@@ -3313,6 +3393,7 @@ Equation:\; (1 - 0.7799B)(1 - B)(1 - B^{12})x_t = (1 + 0.2868B + 0.1734B^2)(1 - 
 </div>
 </div>
 </div>
+<p>The SARIMA(0,1,2)×(0,1,1)[12] model shows residuals that are roughly centered around zero, though some mild volatility clustering is visible toward the end of the series. The ACF plot exhibits small but notable spikes at seasonal lags. The Q–Q plot suggests that the residuals in heavier tails at the extremes, shows non-linearity. The Ljung–Box test indicates that many p-values are below 0.05, suggesting the presence of lingering autocorrelation, indicating it is not fully capturing underlying structure of time series .</p>
 </div>
 <div id="tabset-5-5" class="tab-pane" role="tabpanel" aria-labelledby="tabset-5-5-tab">
 <div class="cell">
@@ -3328,6 +3409,7 @@ Equation:\; (1 - 0.7799B)(1 - B)(1 - B^{12})x_t = (1 + 0.2868B + 0.1734B^2)(1 - 
 </div>
 </div>
 </div>
+<p>The SARIMA(0,1,1)×(0,1,1)[12] model shows residuals that are roughly centered around zero, though some mild volatility clustering is visible toward the end of the series. The ACF plot exhibits small but notable spikes at seasonal lags. The Q–Q plot suggests that the residuals in heavier tails at the extremes, shows non-linearity. The Ljung–Box test indicates that many p-values are below 0.05, suggesting the presence of lingering autocorrelation, indicating it is not fully capturing the underlying structure of time series .</p>
 </div>
 <div id="tabset-5-6" class="tab-pane" role="tabpanel" aria-labelledby="tabset-5-6-tab">
 <div class="cell">
@@ -3343,6 +3425,7 @@ Equation:\; (1 - 0.7799B)(1 - B)(1 - B^{12})x_t = (1 + 0.2868B + 0.1734B^2)(1 - 
 </div>
 </div>
 </div>
+<p>The ARIMA(0,1,1) model shows residuals that are roughly centered around zero(with one outlier), showing no trend or nonstationarity. The ACF plot is nearly flat, with no significant spikes, suggesting residual independence. The Q–Q plot, however, reveals heavier lower tails, indicating a non-normal distribution. The Ljung–Box test p-values fluctuate around the 0.05 line but mostly remain above it, meaning there is no strong evidence of autocorrelation, it is best to interpret as weak autocorrelation.</p>
 </div>
 <div id="tabset-5-7" class="tab-pane" role="tabpanel" aria-labelledby="tabset-5-7-tab">
 <div class="cell">
@@ -3358,6 +3441,7 @@ Equation:\; (1 - 0.7799B)(1 - B)(1 - B^{12})x_t = (1 + 0.2868B + 0.1734B^2)(1 - 
 </div>
 </div>
 </div>
+<p>The ARIMA(1,0,1) model shows residuals that are roughly centered around zero(with one outlier), showing no trend or nonstationarity. The ACF plot is nearly flat, with no significant spikes, suggesting residual independence. The Q–Q plot, however, reveals heavier lower tails, indicating a non-normal distribution. The Ljung–Box test p-values fluctuate around the 0.05 line but mostly remain above it, meaning there is no strong evidence of autocorrelation, it is best to interpret as weak autocorrelation.</p>
 </div>
 <div id="tabset-5-8" class="tab-pane" role="tabpanel" aria-labelledby="tabset-5-8-tab">
 <div class="cell">
@@ -3373,12 +3457,13 @@ Equation:\; (1 - 0.7799B)(1 - B)(1 - B^{12})x_t = (1 + 0.2868B + 0.1734B^2)(1 - 
 </div>
 </div>
 </div>
+<p>The residual diagnostics for the SARIMA(1,1,2)×(0,1,1)[12] model indicate a strong overall fit. The standardized residuals are well-centered and show no visible trend or heteroskedasticity.However since there are fluctuations, it is possible to suspect the fit of the model. The ACF plot reveals that all autocorrelations fall within the confidence bounds, demonstrating that the residuals are uncorrelated. The Q–Q plot is slight deviations at the tails, close to normal, but non-normal. The Ljung–Box test p-values are all above 0.05, suggesting that there is no evidence of autocorrelation remaining.</p>
 </div>
 <div id="tabset-5-9" class="tab-pane" role="tabpanel" aria-labelledby="tabset-5-9-tab">
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb75"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb75-1"><a href="#cb75-1" aria-hidden="true" tabindex="-1"></a>usd_model<span class="ot">&lt;-</span> <span class="fu">capture.output</span>(<span class="fu">sarima</span>(usd_log, <span class="dv">1</span>, <span class="dv">0</span>,<span class="dv">0</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb75"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb75-1"><a href="#cb75-1" aria-hidden="true" tabindex="-1"></a>usd_model<span class="ot">&lt;-</span> <span class="fu">capture.output</span>(<span class="fu">sarima</span>(usd_log, <span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">0</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div>
@@ -3388,6 +3473,7 @@ Equation:\; (1 - 0.7799B)(1 - B)(1 - B^{12})x_t = (1 + 0.2868B + 0.1734B^2)(1 - 
 </div>
 </div>
 </div>
+<p>The ARIMA(1,0,0) model produces residuals that fluctuate around zero without clear patterns, indicating good fit of the model. The ACF of the residuals is nearly flat, with no significant spikes, indicating that the model successfully removed most autocorrelation. The Q–Q plot shows heavy tails and slight skewness, implying some non-normality. The Ljung–Box p-values are above 0.05 but close to 0.05, meaning there is weak sign of autocorrelation left in the residuals.</p>
 </div>
 <div id="tabset-5-10" class="tab-pane" role="tabpanel" aria-labelledby="tabset-5-10-tab">
 <div class="cell">
@@ -3403,6 +3489,7 @@ Equation:\; (1 - 0.7799B)(1 - B)(1 - B^{12})x_t = (1 + 0.2868B + 0.1734B^2)(1 - 
 </div>
 </div>
 </div>
+<p>The ARIMA(0,1,2) model demonstrates residuals that are mostly stable and centered around zero, with one outlier spike. The ACF plot indicates that residuals are largely uncorrelated, as no autocorrelation exceeds the 95% bounds. The Q–Q plot reveals noticeable deviations at the extremes, with heavy tails indicating non-normal residuals. Ljung–Box test results suggest that most p-values clearly are above 0.05, confirming no remaining autocorrelation.</p>
 </div>
 <div id="tabset-5-11" class="tab-pane" role="tabpanel" aria-labelledby="tabset-5-11-tab">
 <div class="cell">
@@ -3418,6 +3505,7 @@ Equation:\; (1 - 0.7799B)(1 - B)(1 - B^{12})x_t = (1 + 0.2868B + 0.1734B^2)(1 - 
 </div>
 </div>
 </div>
+<p>The residual diagnostics for the ARIMA(0,1,1) model indicate that it fits the data reasonably well. The standardized residuals fluctuate randomly around zero with stable variance, though a few volatility spikes appear around 2008–2010 and after 2020. The ACF of residuals shows no significant autocorrelation, suggesting that the residuals behave like white noise. The Normal Q–Q plot is mostly linear but deviates slightly at the tails, indicating heavier tails and mild non-normality. The Ljung–Box p-values remain above 0.05 in the first few lags and are close to 0.05 or less ,autocorrelation exists in the residuals, suggesting the model has not fully captured the underlying structure of the time series.</p>
 </div>
 </div>
 </div>
@@ -3431,214 +3519,96 @@ Equation:\; (1 - 0.7799B)(1 - B)(1 - B^{12})x_t = (1 + 0.2868B + 0.1734B^2)(1 - 
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb78"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb78-1"><a href="#cb78-1" aria-hidden="true" tabindex="-1"></a><span class="fu">auto.arima</span>(bok_ts)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb78"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb78-1"><a href="#cb78-1" aria-hidden="true" tabindex="-1"></a><span class="co">#auto.arima(bok_ts)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
-<div class="cell-output cell-output-stdout">
-<pre><code>Series: bok_ts 
-ARIMA(1,1,0) 
-
-Coefficients:
-         ar1
-      0.3735
-s.e.  0.0878
-
-sigma^2 = 0.1112:  log likelihood = -34.84
-AIC=73.68   AICc=73.79   BIC=79.08</code></pre>
-</div>
 </div>
 </div>
 <div id="tabset-6-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-6-2-tab">
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb80"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb80-1"><a href="#cb80-1" aria-hidden="true" tabindex="-1"></a><span class="fu">auto.arima</span>(usr_ts)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb79"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb79-1"><a href="#cb79-1" aria-hidden="true" tabindex="-1"></a><span class="co">#auto.arima(usr_ts)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
-<div class="cell-output cell-output-stdout">
-<pre><code>Series: usr_ts 
-ARIMA(1,1,0) 
-
-Coefficients:
-         ar1
-      0.6988
-s.e.  0.0675
-
-sigma^2 = 0.1066:  log likelihood = -32.81
-AIC=69.61   AICc=69.73   BIC=75.01</code></pre>
-</div>
 </div>
 </div>
 <div id="tabset-6-3" class="tab-pane" role="tabpanel" aria-labelledby="tabset-6-3-tab">
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb82"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb82-1"><a href="#cb82-1" aria-hidden="true" tabindex="-1"></a><span class="fu">auto.arima</span>(kr_ts)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb80"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb80-1"><a href="#cb80-1" aria-hidden="true" tabindex="-1"></a><span class="co">#auto.arima(kr_ts)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
-<div class="cell-output cell-output-stdout">
-<pre><code>Series: kr_ts 
-ARIMA(0,1,1) 
-
-Coefficients:
-         ma1
-      0.0162
-s.e.  0.0095
-
-sigma^2 = 2.116e-11:  log likelihood = 120598.7
-AIC=-241193.4   AICc=-241193.4   BIC=-241178.8</code></pre>
-</div>
 </div>
 </div>
 <div id="tabset-6-4" class="tab-pane" role="tabpanel" aria-labelledby="tabset-6-4-tab">
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb84"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb84-1"><a href="#cb84-1" aria-hidden="true" tabindex="-1"></a><span class="fu">auto.arima</span>(import_ts)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb81"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb81-1"><a href="#cb81-1" aria-hidden="true" tabindex="-1"></a><span class="co">#auto.arima(import_ts)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
-<div class="cell-output cell-output-stdout">
-<pre><code>Series: import_ts 
-ARIMA(0,1,2)(0,0,1)[12] 
-
-Coefficients:
-          ma1     ma2    sma1
-      -0.5337  0.1225  0.0936
-s.e.   0.0498  0.0577  0.0508
-
-sigma^2 = 1.218e+11:  log likelihood = -5543.73
-AIC=11095.45   AICc=11095.56   BIC=11111.33</code></pre>
-</div>
 </div>
 </div>
 <div id="tabset-6-5" class="tab-pane" role="tabpanel" aria-labelledby="tabset-6-5-tab">
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb86"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb86-1"><a href="#cb86-1" aria-hidden="true" tabindex="-1"></a><span class="fu">auto.arima</span>(export_ts)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb82"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb82-1"><a href="#cb82-1" aria-hidden="true" tabindex="-1"></a><span class="co">#auto.arima(export_ts)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
-<div class="cell-output cell-output-stdout">
-<pre><code>Series: export_ts 
-ARIMA(0,1,3)(0,0,1)[12] with drift 
-
-Coefficients:
-          ma1      ma2     ma3    sma1     drift
-      -0.5359  -0.1579  0.1212  0.3427  20494.29
-s.e.   0.0510   0.0560  0.0518  0.0528  12914.90
-
-sigma^2 = 2.023e+11:  log likelihood = -5642.76
-AIC=11297.51   AICc=11297.73   BIC=11321.32</code></pre>
-</div>
 </div>
 </div>
 <div id="tabset-6-6" class="tab-pane" role="tabpanel" aria-labelledby="tabset-6-6-tab">
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb88"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb88-1"><a href="#cb88-1" aria-hidden="true" tabindex="-1"></a><span class="fu">auto.arima</span>(yield_3y_ts)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb83"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb83-1"><a href="#cb83-1" aria-hidden="true" tabindex="-1"></a><span class="co">#auto.arima(yield_3y_ts)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
-<div class="cell-output cell-output-stdout">
-<pre><code>Series: yield_3y_ts 
-ARIMA(0,1,1) 
-
-Coefficients:
-          ma1
-      -0.1069
-s.e.   0.0125
-
-sigma^2 = 0.006879:  log likelihood = 6743.82
-AIC=-13483.64   AICc=-13483.64   BIC=-13470.15</code></pre>
-</div>
 </div>
 </div>
 <div id="tabset-6-7" class="tab-pane" role="tabpanel" aria-labelledby="tabset-6-7-tab">
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb90"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb90-1"><a href="#cb90-1" aria-hidden="true" tabindex="-1"></a><span class="fu">auto.arima</span>(yield_10y_ts)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb84"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb84-1"><a href="#cb84-1" aria-hidden="true" tabindex="-1"></a><span class="co">#auto.arima(yield_10y_ts)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
-<div class="cell-output cell-output-stdout">
-<pre><code>Series: yield_10y_ts 
-ARIMA(0,1,0) 
-
-sigma^2 = 0.007165:  log likelihood = 6615.19
-AIC=-13228.38   AICc=-13228.38   BIC=-13221.63</code></pre>
-</div>
 </div>
 </div>
 <div id="tabset-6-8" class="tab-pane" role="tabpanel" aria-labelledby="tabset-6-8-tab">
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb92"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb92-1"><a href="#cb92-1" aria-hidden="true" tabindex="-1"></a><span class="fu">auto.arima</span>(house_ts)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb85"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb85-1"><a href="#cb85-1" aria-hidden="true" tabindex="-1"></a><span class="co">#auto.arima(house_ts)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
-<div class="cell-output cell-output-stdout">
-<pre><code>Series: house_ts 
-ARIMA(1,1,2)(0,0,2)[12] with drift 
-
-Coefficients:
-         ar1     ma1     ma2    sma1     sma2   drift
-      0.7610  0.2853  0.1916  0.0853  -0.0875  0.1621
-s.e.  0.0519  0.0721  0.0731  0.0628   0.0635  0.0987
-
-sigma^2 = 0.06953:  log likelihood = -20.22
-AIC=54.44   AICc=54.88   BIC=79.36</code></pre>
-</div>
 </div>
 </div>
 <div id="tabset-6-9" class="tab-pane" role="tabpanel" aria-labelledby="tabset-6-9-tab">
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb94"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb94-1"><a href="#cb94-1" aria-hidden="true" tabindex="-1"></a><span class="fu">auto.arima</span>(usd_log)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb86"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb86-1"><a href="#cb86-1" aria-hidden="true" tabindex="-1"></a><span class="co">#auto.arima(usd_log)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
-<div class="cell-output cell-output-stdout">
-<pre><code>Series: usd_log 
-ARIMA(0,1,0) 
-
-sigma^2 = 2.133e-05:  log likelihood = 43920.12
-AIC=-87838.24   AICc=-87838.24   BIC=-87830.93</code></pre>
-</div>
 </div>
 </div>
 <div id="tabset-6-10" class="tab-pane" role="tabpanel" aria-labelledby="tabset-6-10-tab">
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb96"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb96-1"><a href="#cb96-1" aria-hidden="true" tabindex="-1"></a><span class="fu">auto.arima</span>(kospi_log)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb87"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb87-1"><a href="#cb87-1" aria-hidden="true" tabindex="-1"></a><span class="co">#auto.arima(kospi_log)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
-<div class="cell-output cell-output-stdout">
-<pre><code>Series: kospi_log 
-ARIMA(0,1,2) with drift 
-
-Coefficients:
-         ma1      ma2  drift
-      0.0258  -0.0214  0e+00
-s.e.  0.0117   0.0118  3e-04
-
-sigma^2 = 0.0006338:  log likelihood = 16403.31
-AIC=-32798.61   AICc=-32798.61   BIC=-32771.06</code></pre>
-</div>
 </div>
 </div>
 <div id="tabset-6-11" class="tab-pane" role="tabpanel" aria-labelledby="tabset-6-11-tab">
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb98"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb98-1"><a href="#cb98-1" aria-hidden="true" tabindex="-1"></a><span class="fu">auto.arima</span>(sp_log)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb88"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb88-1"><a href="#cb88-1" aria-hidden="true" tabindex="-1"></a><span class="co">#auto.arima(sp_log)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
-<div class="cell-output cell-output-stdout">
-<pre><code>Series: sp_log 
-ARIMA(0,1,1) with drift 
-
-Coefficients:
-          ma1  drift
-      -0.0802  3e-04
-s.e.   0.0107  1e-04
-
-sigma^2 = 0.0001285:  log likelihood = 27024.25
-AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 </div>
 </div>
 </div>
 </div>
-</div>
+<section id="discrepancy-between-model-selection-process-and-auto.arima" class="level3">
+<h3 class="anchored" data-anchor-id="discrepancy-between-model-selection-process-and-auto.arima">discrepancy between model selection process and auto.arima</h3>
+<p>Both model selection procedure and auto.arima() recommend models, but they weigh evidence differently, so agreement occurs only where the diagnostics are unequivocally clean. For the Federal Reserve rate, trade imports, KOSPI, and S&amp;P 500, residual checks are tidy—flat residual ACFs, Ljung–Box p-values consistently above 0.05, and only mild Q–Q tail bends—so both methods converge on the same specifications. In contrast, several other series show diagnostic red flags that nudge the algorithms apart. The South Korea base rate looks broadly well-fit but exhibits outlier patterns that can distort parameter selection; the FX rate has two large residual outliers and Ljung–Box p-values often below 0.05, indicating unresolved autocorrelation; exports likewise show low Ljung–Box p-values and more volatile residuals than peer models; the 10-year yield spread has one large outlier and Ljung–Box p-values that are acceptable at short lags but approach or fall below 0.05 after roughly 10 lags, again signaling remaining dependence; the Seoul housing index displays notably volatile residuals; and the USD index shows low Ljung–Box p-values, confirming residual autocorrelation. In short, where diagnostics are clean, both methods agree; where outliers, volatility, or lingering autocorrelation appear, auto.arima() tends to prefer more parsimonious, IC-optimal models, while our approach favors specifications that better purge residual structure—hence the differences.</p>
+</section>
 </section>
 <section id="forecasting" class="level1">
 <h1>Forecasting</h1>
@@ -3649,13 +3619,13 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb100"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb100-1"><a href="#cb100-1" aria-hidden="true" tabindex="-1"></a>bok_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(bok_ts, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>))</span>
-<span id="cb100-2"><a href="#cb100-2" aria-hidden="true" tabindex="-1"></a>bok_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(bok_fit, <span class="at">h =</span> <span class="dv">20</span>)</span>
-<span id="cb100-3"><a href="#cb100-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(bok_forecast_result) <span class="sc">+</span></span>
-<span id="cb100-4"><a href="#cb100-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"ARIMA(0,1,1) Forecast"</span>,</span>
-<span id="cb100-5"><a href="#cb100-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
-<span id="cb100-6"><a href="#cb100-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
-<span id="cb100-7"><a href="#cb100-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb89"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb89-1"><a href="#cb89-1" aria-hidden="true" tabindex="-1"></a>bok_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(bok_ts, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>))</span>
+<span id="cb89-2"><a href="#cb89-2" aria-hidden="true" tabindex="-1"></a>bok_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(bok_fit, <span class="at">h =</span> <span class="dv">20</span>)</span>
+<span id="cb89-3"><a href="#cb89-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(bok_forecast_result) <span class="sc">+</span></span>
+<span id="cb89-4"><a href="#cb89-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"ARIMA(0,1,1) Forecast"</span>,</span>
+<span id="cb89-5"><a href="#cb89-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
+<span id="cb89-6"><a href="#cb89-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
+<span id="cb89-7"><a href="#cb89-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div>
@@ -3670,13 +3640,13 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb101"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb101-1"><a href="#cb101-1" aria-hidden="true" tabindex="-1"></a>usr_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(usr_ts, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">1</span>,<span class="dv">0</span>))</span>
-<span id="cb101-2"><a href="#cb101-2" aria-hidden="true" tabindex="-1"></a>usr_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(usr_fit, <span class="at">h =</span> <span class="dv">20</span>)</span>
-<span id="cb101-3"><a href="#cb101-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(usr_forecast_result) <span class="sc">+</span></span>
-<span id="cb101-4"><a href="#cb101-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"ARIMA(1,1,0) Forecast"</span>,</span>
-<span id="cb101-5"><a href="#cb101-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
-<span id="cb101-6"><a href="#cb101-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
-<span id="cb101-7"><a href="#cb101-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb90"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb90-1"><a href="#cb90-1" aria-hidden="true" tabindex="-1"></a>usr_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(usr_ts, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">1</span>,<span class="dv">0</span>))</span>
+<span id="cb90-2"><a href="#cb90-2" aria-hidden="true" tabindex="-1"></a>usr_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(usr_fit, <span class="at">h =</span> <span class="dv">20</span>)</span>
+<span id="cb90-3"><a href="#cb90-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(usr_forecast_result) <span class="sc">+</span></span>
+<span id="cb90-4"><a href="#cb90-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"ARIMA(1,1,0) Forecast"</span>,</span>
+<span id="cb90-5"><a href="#cb90-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
+<span id="cb90-6"><a href="#cb90-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
+<span id="cb90-7"><a href="#cb90-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div>
@@ -3691,13 +3661,13 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb102"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb102-1"><a href="#cb102-1" aria-hidden="true" tabindex="-1"></a>kr_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(kr_ts, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">1</span>))</span>
-<span id="cb102-2"><a href="#cb102-2" aria-hidden="true" tabindex="-1"></a>kr_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(kr_fit, <span class="at">h =</span> <span class="dv">1008</span>)</span>
-<span id="cb102-3"><a href="#cb102-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(kr_forecast_result) <span class="sc">+</span></span>
-<span id="cb102-4"><a href="#cb102-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"ARIMA(1,0,1) Forecast"</span>,</span>
-<span id="cb102-5"><a href="#cb102-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
-<span id="cb102-6"><a href="#cb102-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
-<span id="cb102-7"><a href="#cb102-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb91"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb91-1"><a href="#cb91-1" aria-hidden="true" tabindex="-1"></a>kr_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(kr_ts, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">1</span>))</span>
+<span id="cb91-2"><a href="#cb91-2" aria-hidden="true" tabindex="-1"></a>kr_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(kr_fit, <span class="at">h =</span> <span class="dv">1008</span>)</span>
+<span id="cb91-3"><a href="#cb91-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(kr_forecast_result) <span class="sc">+</span></span>
+<span id="cb91-4"><a href="#cb91-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"ARIMA(1,0,1) Forecast"</span>,</span>
+<span id="cb91-5"><a href="#cb91-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
+<span id="cb91-6"><a href="#cb91-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
+<span id="cb91-7"><a href="#cb91-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div>
@@ -3712,13 +3682,13 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb103"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb103-1"><a href="#cb103-1" aria-hidden="true" tabindex="-1"></a>import_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(import_ts, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">2</span>), <span class="at">seasonal =</span> <span class="fu">list</span>(<span class="at">order =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>), <span class="at">period =</span> <span class="dv">12</span>))</span>
-<span id="cb103-2"><a href="#cb103-2" aria-hidden="true" tabindex="-1"></a>import_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(import_fit, <span class="at">h =</span> <span class="dv">36</span>,<span class="at">level =</span> <span class="fu">c</span>(<span class="dv">80</span>, <span class="dv">95</span>))</span>
-<span id="cb103-3"><a href="#cb103-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(import_forecast_result,<span class="at">PI=</span> <span class="cn">TRUE</span>) <span class="sc">+</span></span>
-<span id="cb103-4"><a href="#cb103-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">" SARIMA(0,1,2)(0,1,1)[12] Forecast"</span>,</span>
-<span id="cb103-5"><a href="#cb103-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
-<span id="cb103-6"><a href="#cb103-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
-<span id="cb103-7"><a href="#cb103-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb92"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb92-1"><a href="#cb92-1" aria-hidden="true" tabindex="-1"></a>import_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(import_ts, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">2</span>), <span class="at">seasonal =</span> <span class="fu">list</span>(<span class="at">order =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>), <span class="at">period =</span> <span class="dv">12</span>))</span>
+<span id="cb92-2"><a href="#cb92-2" aria-hidden="true" tabindex="-1"></a>import_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(import_fit, <span class="at">h =</span> <span class="dv">36</span>,<span class="at">level =</span> <span class="fu">c</span>(<span class="dv">80</span>, <span class="dv">95</span>))</span>
+<span id="cb92-3"><a href="#cb92-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(import_forecast_result,<span class="at">PI=</span> <span class="cn">TRUE</span>) <span class="sc">+</span></span>
+<span id="cb92-4"><a href="#cb92-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">" SARIMA(0,1,2)(0,1,1)[12] Forecast"</span>,</span>
+<span id="cb92-5"><a href="#cb92-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
+<span id="cb92-6"><a href="#cb92-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
+<span id="cb92-7"><a href="#cb92-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div>
@@ -3733,13 +3703,13 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb104"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb104-1"><a href="#cb104-1" aria-hidden="true" tabindex="-1"></a>export_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(export_ts, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>), <span class="at">seasonal =</span> <span class="fu">list</span>(<span class="at">order =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>), <span class="at">period =</span> <span class="dv">12</span>))</span>
-<span id="cb104-2"><a href="#cb104-2" aria-hidden="true" tabindex="-1"></a>export_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(export_fit, <span class="at">h =</span> <span class="dv">36</span>,<span class="at">level =</span> <span class="fu">c</span>(<span class="dv">80</span>, <span class="dv">95</span>))</span>
-<span id="cb104-3"><a href="#cb104-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(export_forecast_result,<span class="at">PI=</span> <span class="cn">TRUE</span>) <span class="sc">+</span></span>
-<span id="cb104-4"><a href="#cb104-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"Trade export: SARIMA(0,1,1)(0,1,1) Forecast"</span>,</span>
-<span id="cb104-5"><a href="#cb104-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
-<span id="cb104-6"><a href="#cb104-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
-<span id="cb104-7"><a href="#cb104-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb93"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb93-1"><a href="#cb93-1" aria-hidden="true" tabindex="-1"></a>export_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(export_ts, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>), <span class="at">seasonal =</span> <span class="fu">list</span>(<span class="at">order =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>), <span class="at">period =</span> <span class="dv">12</span>))</span>
+<span id="cb93-2"><a href="#cb93-2" aria-hidden="true" tabindex="-1"></a>export_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(export_fit, <span class="at">h =</span> <span class="dv">36</span>,<span class="at">level =</span> <span class="fu">c</span>(<span class="dv">80</span>, <span class="dv">95</span>))</span>
+<span id="cb93-3"><a href="#cb93-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(export_forecast_result,<span class="at">PI=</span> <span class="cn">TRUE</span>) <span class="sc">+</span></span>
+<span id="cb93-4"><a href="#cb93-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"Trade export: SARIMA(0,1,1)(0,1,1) Forecast"</span>,</span>
+<span id="cb93-5"><a href="#cb93-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
+<span id="cb93-6"><a href="#cb93-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
+<span id="cb93-7"><a href="#cb93-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div>
@@ -3754,13 +3724,13 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb105"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb105-1"><a href="#cb105-1" aria-hidden="true" tabindex="-1"></a>yield_3y_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(yield_3y_ts, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>))</span>
-<span id="cb105-2"><a href="#cb105-2" aria-hidden="true" tabindex="-1"></a>yield_3y_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(yield_3y_fit, <span class="at">h =</span> <span class="dv">1008</span>)</span>
-<span id="cb105-3"><a href="#cb105-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(yield_3y_forecast_result) <span class="sc">+</span></span>
-<span id="cb105-4"><a href="#cb105-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"ARIMA(0,1,1) Forecast"</span>,</span>
-<span id="cb105-5"><a href="#cb105-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
-<span id="cb105-6"><a href="#cb105-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
-<span id="cb105-7"><a href="#cb105-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb94"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb94-1"><a href="#cb94-1" aria-hidden="true" tabindex="-1"></a>yield_3y_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(yield_3y_ts, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>))</span>
+<span id="cb94-2"><a href="#cb94-2" aria-hidden="true" tabindex="-1"></a>yield_3y_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(yield_3y_fit, <span class="at">h =</span> <span class="dv">1008</span>)</span>
+<span id="cb94-3"><a href="#cb94-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(yield_3y_forecast_result) <span class="sc">+</span></span>
+<span id="cb94-4"><a href="#cb94-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"ARIMA(0,1,1) Forecast"</span>,</span>
+<span id="cb94-5"><a href="#cb94-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
+<span id="cb94-6"><a href="#cb94-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
+<span id="cb94-7"><a href="#cb94-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div>
@@ -3775,13 +3745,13 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb106"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb106-1"><a href="#cb106-1" aria-hidden="true" tabindex="-1"></a>yield_10y_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(yield_10y_ts, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">1</span>))</span>
-<span id="cb106-2"><a href="#cb106-2" aria-hidden="true" tabindex="-1"></a>yield_10y_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(yield_10y_fit, <span class="at">h =</span> <span class="dv">1008</span>)</span>
-<span id="cb106-3"><a href="#cb106-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(yield_10y_forecast_result) <span class="sc">+</span></span>
-<span id="cb106-4"><a href="#cb106-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"ARIMA(1,0,1) Forecast"</span>,</span>
-<span id="cb106-5"><a href="#cb106-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
-<span id="cb106-6"><a href="#cb106-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
-<span id="cb106-7"><a href="#cb106-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb95"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb95-1"><a href="#cb95-1" aria-hidden="true" tabindex="-1"></a>yield_10y_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(yield_10y_ts, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">1</span>))</span>
+<span id="cb95-2"><a href="#cb95-2" aria-hidden="true" tabindex="-1"></a>yield_10y_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(yield_10y_fit, <span class="at">h =</span> <span class="dv">1008</span>)</span>
+<span id="cb95-3"><a href="#cb95-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(yield_10y_forecast_result) <span class="sc">+</span></span>
+<span id="cb95-4"><a href="#cb95-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"ARIMA(1,0,1) Forecast"</span>,</span>
+<span id="cb95-5"><a href="#cb95-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
+<span id="cb95-6"><a href="#cb95-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
+<span id="cb95-7"><a href="#cb95-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div>
@@ -3796,13 +3766,13 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb107"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb107-1"><a href="#cb107-1" aria-hidden="true" tabindex="-1"></a>house_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(house_ts, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">1</span>,<span class="dv">2</span>), <span class="at">seasonal =</span> <span class="fu">list</span>(<span class="at">order =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>), <span class="at">period =</span> <span class="dv">12</span>))</span>
-<span id="cb107-2"><a href="#cb107-2" aria-hidden="true" tabindex="-1"></a>house_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(house_fit, <span class="at">h =</span> <span class="dv">36</span>,<span class="at">level =</span> <span class="fu">c</span>(<span class="dv">80</span>, <span class="dv">95</span>))</span>
-<span id="cb107-3"><a href="#cb107-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(house_forecast_result,<span class="at">PI=</span> <span class="cn">TRUE</span>) <span class="sc">+</span></span>
-<span id="cb107-4"><a href="#cb107-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"SARIMA(1,1,2)(0,1,1)[12] Forecast"</span>,</span>
-<span id="cb107-5"><a href="#cb107-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
-<span id="cb107-6"><a href="#cb107-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
-<span id="cb107-7"><a href="#cb107-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb96"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb96-1"><a href="#cb96-1" aria-hidden="true" tabindex="-1"></a>house_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(house_ts, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">1</span>,<span class="dv">2</span>), <span class="at">seasonal =</span> <span class="fu">list</span>(<span class="at">order =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>), <span class="at">period =</span> <span class="dv">12</span>))</span>
+<span id="cb96-2"><a href="#cb96-2" aria-hidden="true" tabindex="-1"></a>house_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(house_fit, <span class="at">h =</span> <span class="dv">36</span>,<span class="at">level =</span> <span class="fu">c</span>(<span class="dv">80</span>, <span class="dv">95</span>))</span>
+<span id="cb96-3"><a href="#cb96-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(house_forecast_result,<span class="at">PI=</span> <span class="cn">TRUE</span>) <span class="sc">+</span></span>
+<span id="cb96-4"><a href="#cb96-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"SARIMA(1,1,2)(0,1,1)[12] Forecast"</span>,</span>
+<span id="cb96-5"><a href="#cb96-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
+<span id="cb96-6"><a href="#cb96-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
+<span id="cb96-7"><a href="#cb96-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div>
@@ -3817,14 +3787,14 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb108"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb108-1"><a href="#cb108-1" aria-hidden="true" tabindex="-1"></a>usd_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(usd_log, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">0</span>))</span>
-<span id="cb108-2"><a href="#cb108-2" aria-hidden="true" tabindex="-1"></a>usd_forecast_result_usd <span class="ot">&lt;-</span> <span class="fu">forecast</span>(usd_fit, <span class="at">h =</span> <span class="dv">1008</span>)</span>
-<span id="cb108-3"><a href="#cb108-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb108-4"><a href="#cb108-4" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(usd_forecast_result_usd) <span class="sc">+</span></span>
-<span id="cb108-5"><a href="#cb108-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"ARIMA(1,0,0) Forecast"</span>,</span>
-<span id="cb108-6"><a href="#cb108-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
-<span id="cb108-7"><a href="#cb108-7" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
-<span id="cb108-8"><a href="#cb108-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>() </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb97"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb97-1"><a href="#cb97-1" aria-hidden="true" tabindex="-1"></a>usd_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(usd_log, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">0</span>))</span>
+<span id="cb97-2"><a href="#cb97-2" aria-hidden="true" tabindex="-1"></a>usd_forecast_result_usd <span class="ot">&lt;-</span> <span class="fu">forecast</span>(usd_fit, <span class="at">h =</span> <span class="dv">1008</span>)</span>
+<span id="cb97-3"><a href="#cb97-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb97-4"><a href="#cb97-4" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(usd_forecast_result_usd) <span class="sc">+</span></span>
+<span id="cb97-5"><a href="#cb97-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"ARIMA(1,0,0) Forecast"</span>,</span>
+<span id="cb97-6"><a href="#cb97-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
+<span id="cb97-7"><a href="#cb97-7" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
+<span id="cb97-8"><a href="#cb97-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>() </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div>
@@ -3839,13 +3809,13 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb109"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb109-1"><a href="#cb109-1" aria-hidden="true" tabindex="-1"></a>kospi_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(kospi_log, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">2</span>))</span>
-<span id="cb109-2"><a href="#cb109-2" aria-hidden="true" tabindex="-1"></a>kospi_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(kospi_fit, <span class="at">h =</span> <span class="dv">756</span>)</span>
-<span id="cb109-3"><a href="#cb109-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(kospi_forecast_result) <span class="sc">+</span></span>
-<span id="cb109-4"><a href="#cb109-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"ARIMA(0,1,2) Forecast"</span>,</span>
-<span id="cb109-5"><a href="#cb109-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
-<span id="cb109-6"><a href="#cb109-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
-<span id="cb109-7"><a href="#cb109-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb98"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb98-1"><a href="#cb98-1" aria-hidden="true" tabindex="-1"></a>kospi_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(kospi_log, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">2</span>))</span>
+<span id="cb98-2"><a href="#cb98-2" aria-hidden="true" tabindex="-1"></a>kospi_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(kospi_fit, <span class="at">h =</span> <span class="dv">756</span>)</span>
+<span id="cb98-3"><a href="#cb98-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(kospi_forecast_result) <span class="sc">+</span></span>
+<span id="cb98-4"><a href="#cb98-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"ARIMA(0,1,2) Forecast"</span>,</span>
+<span id="cb98-5"><a href="#cb98-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
+<span id="cb98-6"><a href="#cb98-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
+<span id="cb98-7"><a href="#cb98-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div>
@@ -3860,13 +3830,13 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb110"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb110-1"><a href="#cb110-1" aria-hidden="true" tabindex="-1"></a>sp_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(sp_log, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">1</span>))</span>
-<span id="cb110-2"><a href="#cb110-2" aria-hidden="true" tabindex="-1"></a>sp_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(sp_fit, <span class="at">h =</span> <span class="dv">1008</span>)</span>
-<span id="cb110-3"><a href="#cb110-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(sp_forecast_result) <span class="sc">+</span></span>
-<span id="cb110-4"><a href="#cb110-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"ARIMA(1,0,1) Forecast"</span>,</span>
-<span id="cb110-5"><a href="#cb110-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
-<span id="cb110-6"><a href="#cb110-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
-<span id="cb110-7"><a href="#cb110-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb99"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb99-1"><a href="#cb99-1" aria-hidden="true" tabindex="-1"></a>sp_fit <span class="ot">&lt;-</span> <span class="fu">Arima</span>(sp_log, <span class="at">order =</span> <span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">1</span>))</span>
+<span id="cb99-2"><a href="#cb99-2" aria-hidden="true" tabindex="-1"></a>sp_forecast_result <span class="ot">&lt;-</span> <span class="fu">forecast</span>(sp_fit, <span class="at">h =</span> <span class="dv">1008</span>)</span>
+<span id="cb99-3"><a href="#cb99-3" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(sp_forecast_result) <span class="sc">+</span></span>
+<span id="cb99-4"><a href="#cb99-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"ARIMA(1,0,1) Forecast"</span>,</span>
+<span id="cb99-5"><a href="#cb99-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Time"</span>,</span>
+<span id="cb99-6"><a href="#cb99-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
+<span id="cb99-7"><a href="#cb99-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div>
@@ -3887,19 +3857,19 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb111"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb111-1"><a href="#cb111-1" aria-hidden="true" tabindex="-1"></a>plot_util <span class="ot">&lt;-</span> <span class="cf">function</span>(forecast_result, ts, h, fit) {</span>
-<span id="cb111-2"><a href="#cb111-2" aria-hidden="true" tabindex="-1"></a>  <span class="co">#print(accuracy(forecast_result))  </span></span>
-<span id="cb111-3"><a href="#cb111-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">autoplot</span>(ts) <span class="sc">+</span></span>
-<span id="cb111-4"><a href="#cb111-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">autolayer</span>(<span class="fu">meanf</span>(ts, <span class="at">h =</span> h), <span class="at">series =</span> <span class="st">"Mean"</span>, <span class="at">PI =</span> <span class="cn">FALSE</span>) <span class="sc">+</span></span>
-<span id="cb111-5"><a href="#cb111-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">autolayer</span>(<span class="fu">naive</span>(ts, <span class="at">h =</span> h), <span class="at">series =</span> <span class="st">"Naïve"</span>, <span class="at">PI =</span> <span class="cn">FALSE</span>) <span class="sc">+</span></span>
-<span id="cb111-6"><a href="#cb111-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">autolayer</span>(<span class="fu">snaive</span>(ts, <span class="at">h =</span> h), <span class="at">series =</span> <span class="st">"SNaïve"</span>, <span class="at">PI =</span> <span class="cn">FALSE</span>) <span class="sc">+</span></span>
-<span id="cb111-7"><a href="#cb111-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">autolayer</span>(<span class="fu">rwf</span>(ts, <span class="at">drift =</span> <span class="cn">TRUE</span>, <span class="at">h =</span> h), <span class="at">series =</span> <span class="st">"Drift"</span>, <span class="at">PI =</span> <span class="cn">FALSE</span>) <span class="sc">+</span></span>
-<span id="cb111-8"><a href="#cb111-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">autolayer</span>(<span class="fu">forecast</span>(fit, <span class="at">h =</span> h), <span class="at">series =</span> <span class="st">"Fit"</span>, <span class="at">PI =</span> <span class="cn">FALSE</span>) <span class="sc">+</span></span>
-<span id="cb111-9"><a href="#cb111-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">xlab</span>(<span class="st">"Date"</span>) <span class="sc">+</span> </span>
-<span id="cb111-10"><a href="#cb111-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ylab</span>(<span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
-<span id="cb111-11"><a href="#cb111-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">guides</span>(<span class="at">colour =</span> <span class="fu">guide_legend</span>(<span class="at">title =</span> <span class="st">"Forecast Methods"</span>)) <span class="sc">+</span></span>
-<span id="cb111-12"><a href="#cb111-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_minimal</span>()</span>
-<span id="cb111-13"><a href="#cb111-13" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb100"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb100-1"><a href="#cb100-1" aria-hidden="true" tabindex="-1"></a>plot_util <span class="ot">&lt;-</span> <span class="cf">function</span>(forecast_result, ts, h, fit) {</span>
+<span id="cb100-2"><a href="#cb100-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">print</span>(<span class="fu">accuracy</span>(forecast_result))  </span>
+<span id="cb100-3"><a href="#cb100-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">autoplot</span>(ts) <span class="sc">+</span></span>
+<span id="cb100-4"><a href="#cb100-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">autolayer</span>(<span class="fu">meanf</span>(ts, <span class="at">h =</span> h), <span class="at">series =</span> <span class="st">"Mean"</span>, <span class="at">PI =</span> <span class="cn">FALSE</span>) <span class="sc">+</span></span>
+<span id="cb100-5"><a href="#cb100-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">autolayer</span>(<span class="fu">naive</span>(ts, <span class="at">h =</span> h), <span class="at">series =</span> <span class="st">"Naïve"</span>, <span class="at">PI =</span> <span class="cn">FALSE</span>) <span class="sc">+</span></span>
+<span id="cb100-6"><a href="#cb100-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">autolayer</span>(<span class="fu">snaive</span>(ts, <span class="at">h =</span> h), <span class="at">series =</span> <span class="st">"SNaïve"</span>, <span class="at">PI =</span> <span class="cn">FALSE</span>) <span class="sc">+</span></span>
+<span id="cb100-7"><a href="#cb100-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">autolayer</span>(<span class="fu">rwf</span>(ts, <span class="at">drift =</span> <span class="cn">TRUE</span>, <span class="at">h =</span> h), <span class="at">series =</span> <span class="st">"Drift"</span>, <span class="at">PI =</span> <span class="cn">FALSE</span>) <span class="sc">+</span></span>
+<span id="cb100-8"><a href="#cb100-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">autolayer</span>(<span class="fu">forecast</span>(fit, <span class="at">h =</span> h), <span class="at">series =</span> <span class="st">"Fit"</span>, <span class="at">PI =</span> <span class="cn">FALSE</span>) <span class="sc">+</span></span>
+<span id="cb100-9"><a href="#cb100-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">xlab</span>(<span class="st">"Date"</span>) <span class="sc">+</span> </span>
+<span id="cb100-10"><a href="#cb100-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ylab</span>(<span class="st">"Predicted Values"</span>) <span class="sc">+</span></span>
+<span id="cb100-11"><a href="#cb100-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">guides</span>(<span class="at">colour =</span> <span class="fu">guide_legend</span>(<span class="at">title =</span> <span class="st">"Forecast Methods"</span>)) <span class="sc">+</span></span>
+<span id="cb100-12"><a href="#cb100-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_minimal</span>()</span>
+<span id="cb100-13"><a href="#cb100-13" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 </div>
 <div class="tabset-margin-container"></div><div class="panel-tabset">
@@ -3909,23 +3879,23 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb112"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb112-1"><a href="#cb112-1" aria-hidden="true" tabindex="-1"></a>bok_tsibble<span class="ot">&lt;-</span><span class="fu">as_tsibble</span>(bok_ts)</span>
-<span id="cb112-2"><a href="#cb112-2" aria-hidden="true" tabindex="-1"></a>fit_bok <span class="ot">&lt;-</span> bok_tsibble<span class="sc">%&gt;%</span></span>
-<span id="cb112-3"><a href="#cb112-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">model</span>(</span>
-<span id="cb112-4"><a href="#cb112-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">Mean  =</span> <span class="fu">MEAN</span>(value),</span>
-<span id="cb112-5"><a href="#cb112-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">Naive =</span> <span class="fu">NAIVE</span>(value),</span>
-<span id="cb112-6"><a href="#cb112-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">SNaive =</span> <span class="fu">SNAIVE</span>(value),</span>
-<span id="cb112-7"><a href="#cb112-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">Drift =</span> <span class="fu">RW</span>(value <span class="sc">~</span> <span class="fu">drift</span>()),</span>
-<span id="cb112-8"><a href="#cb112-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">ARIMA_model =</span> <span class="fu">ARIMA</span>(value <span class="sc">~</span> <span class="fu">pdq</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>))  </span>
-<span id="cb112-9"><a href="#cb112-9" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb112-10"><a href="#cb112-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb112-11"><a href="#cb112-11" aria-hidden="true" tabindex="-1"></a>bok_forecast <span class="ot">&lt;-</span> <span class="fu">forecast</span>(fit_bok, <span class="at">h =</span> <span class="dv">20</span>)</span>
-<span id="cb112-12"><a href="#cb112-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb112-13"><a href="#cb112-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb112-14"><a href="#cb112-14" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(bok_forecast, bok_tsibble) <span class="sc">+</span></span>
-<span id="cb112-15"><a href="#cb112-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Quarter"</span>, <span class="at">y =</span> <span class="st">"Predicted Values"</span>, <span class="at">colour =</span> <span class="st">"Forecast Methods"</span>) <span class="sc">+</span></span>
-<span id="cb112-16"><a href="#cb112-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">guides</span>(<span class="at">colour =</span> <span class="st">"none"</span>, <span class="at">linetype =</span> <span class="st">"none"</span>) <span class="sc">+</span>  </span>
-<span id="cb112-17"><a href="#cb112-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb101"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb101-1"><a href="#cb101-1" aria-hidden="true" tabindex="-1"></a>bok_tsibble<span class="ot">&lt;-</span><span class="fu">as_tsibble</span>(bok_ts)</span>
+<span id="cb101-2"><a href="#cb101-2" aria-hidden="true" tabindex="-1"></a>fit_bok <span class="ot">&lt;-</span> bok_tsibble<span class="sc">%&gt;%</span></span>
+<span id="cb101-3"><a href="#cb101-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">model</span>(</span>
+<span id="cb101-4"><a href="#cb101-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">Mean  =</span> <span class="fu">MEAN</span>(value),</span>
+<span id="cb101-5"><a href="#cb101-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">Naive =</span> <span class="fu">NAIVE</span>(value),</span>
+<span id="cb101-6"><a href="#cb101-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">SNaive =</span> <span class="fu">SNAIVE</span>(value),</span>
+<span id="cb101-7"><a href="#cb101-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">Drift =</span> <span class="fu">RW</span>(value <span class="sc">~</span> <span class="fu">drift</span>()),</span>
+<span id="cb101-8"><a href="#cb101-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">ARIMA_model =</span> <span class="fu">ARIMA</span>(value <span class="sc">~</span> <span class="fu">pdq</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>))  </span>
+<span id="cb101-9"><a href="#cb101-9" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb101-10"><a href="#cb101-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb101-11"><a href="#cb101-11" aria-hidden="true" tabindex="-1"></a>bok_forecast <span class="ot">&lt;-</span> <span class="fu">forecast</span>(fit_bok, <span class="at">h =</span> <span class="dv">20</span>)</span>
+<span id="cb101-12"><a href="#cb101-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb101-13"><a href="#cb101-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb101-14"><a href="#cb101-14" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(bok_forecast, bok_tsibble) <span class="sc">+</span></span>
+<span id="cb101-15"><a href="#cb101-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Quarter"</span>, <span class="at">y =</span> <span class="st">"Predicted Values"</span>, <span class="at">colour =</span> <span class="st">"Forecast Methods"</span>) <span class="sc">+</span></span>
+<span id="cb101-16"><a href="#cb101-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">guides</span>(<span class="at">colour =</span> <span class="st">"none"</span>, <span class="at">linetype =</span> <span class="st">"none"</span>) <span class="sc">+</span>  </span>
+<span id="cb101-17"><a href="#cb101-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div>
@@ -3934,29 +3904,66 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 </figure>
 </div>
 </div>
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb102"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb102-1"><a href="#cb102-1" aria-hidden="true" tabindex="-1"></a>acc_train <span class="ot">&lt;-</span> <span class="fu">accuracy</span>(fit_bok) <span class="sc">%&gt;%</span></span>
+<span id="cb102-2"><a href="#cb102-2" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(.model, RMSE, MAE, MAPE, MASE, ACF1) <span class="sc">%&gt;%</span></span>
+<span id="cb102-3"><a href="#cb102-3" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">arrange</span>(RMSE)</span>
+<span id="cb102-4"><a href="#cb102-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb102-5"><a href="#cb102-5" aria-hidden="true" tabindex="-1"></a>h <span class="ot">&lt;-</span> <span class="dv">20</span></span>
+<span id="cb102-6"><a href="#cb102-6" aria-hidden="true" tabindex="-1"></a>n <span class="ot">&lt;-</span> <span class="fu">nrow</span>(bok_tsibble)</span>
+<span id="cb102-7"><a href="#cb102-7" aria-hidden="true" tabindex="-1"></a>bok_train <span class="ot">&lt;-</span> bok_tsibble <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">slice_head</span>(<span class="at">n =</span> n <span class="sc">-</span> h)</span>
+<span id="cb102-8"><a href="#cb102-8" aria-hidden="true" tabindex="-1"></a>bok_test  <span class="ot">&lt;-</span> bok_tsibble <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">slice_tail</span>(<span class="at">n =</span> h)</span>
+<span id="cb102-9"><a href="#cb102-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb102-10"><a href="#cb102-10" aria-hidden="true" tabindex="-1"></a>fit_train <span class="ot">&lt;-</span> bok_train <span class="sc">%&gt;%</span></span>
+<span id="cb102-11"><a href="#cb102-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">model</span>(</span>
+<span id="cb102-12"><a href="#cb102-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">Mean        =</span> <span class="fu">MEAN</span>(value),</span>
+<span id="cb102-13"><a href="#cb102-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">Naive       =</span> <span class="fu">NAIVE</span>(value),</span>
+<span id="cb102-14"><a href="#cb102-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">SNaive      =</span> <span class="fu">SNAIVE</span>(value),</span>
+<span id="cb102-15"><a href="#cb102-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">Drift       =</span> <span class="fu">RW</span>(value <span class="sc">~</span> <span class="fu">drift</span>()),</span>
+<span id="cb102-16"><a href="#cb102-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">ARIMA_model =</span> <span class="fu">ARIMA</span>(value <span class="sc">~</span> <span class="fu">pdq</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>))</span>
+<span id="cb102-17"><a href="#cb102-17" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb102-18"><a href="#cb102-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb102-19"><a href="#cb102-19" aria-hidden="true" tabindex="-1"></a>fc_test <span class="ot">&lt;-</span> <span class="fu">forecast</span>(fit_train, <span class="at">h =</span> h)</span>
+<span id="cb102-20"><a href="#cb102-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb102-21"><a href="#cb102-21" aria-hidden="true" tabindex="-1"></a>acc_test <span class="ot">&lt;-</span> <span class="fu">accuracy</span>(fc_test, bok_test) <span class="sc">%&gt;%</span></span>
+<span id="cb102-22"><a href="#cb102-22" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(.model, RMSE, MAE, MAPE, MASE, ACF1) <span class="sc">%&gt;%</span></span>
+<span id="cb102-23"><a href="#cb102-23" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">arrange</span>(RMSE)</span>
+<span id="cb102-24"><a href="#cb102-24" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(acc_test)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 5 × 6
+  .model       RMSE   MAE  MAPE  MASE  ACF1
+  &lt;chr&gt;       &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+1 Mean         1.05 0.839  29.1   NaN 0.650
+2 ARIMA_model  2.51 2.31   66.9   NaN 0.650
+3 Naive        2.62 2.42   70.6   NaN 0.650
+4 SNaive       2.84 2.66   79.3   NaN 0.622
+5 Drift        3.11 2.88   84.1   NaN 0.683</code></pre>
+</div>
 </div>
 </div>
 <div id="tabset-8-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-8-2-tab">
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb113"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb113-1"><a href="#cb113-1" aria-hidden="true" tabindex="-1"></a>usr_tsibble<span class="ot">&lt;-</span><span class="fu">as_tsibble</span>(usr_ts)</span>
-<span id="cb113-2"><a href="#cb113-2" aria-hidden="true" tabindex="-1"></a>fit_usr <span class="ot">&lt;-</span> usr_tsibble<span class="sc">%&gt;%</span></span>
-<span id="cb113-3"><a href="#cb113-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">model</span>(</span>
-<span id="cb113-4"><a href="#cb113-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">Mean  =</span> <span class="fu">MEAN</span>(value),</span>
-<span id="cb113-5"><a href="#cb113-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">Naive =</span> <span class="fu">NAIVE</span>(value),</span>
-<span id="cb113-6"><a href="#cb113-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">SNaive =</span> <span class="fu">SNAIVE</span>(value),</span>
-<span id="cb113-7"><a href="#cb113-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">Drift =</span> <span class="fu">RW</span>(value <span class="sc">~</span> <span class="fu">drift</span>()),</span>
-<span id="cb113-8"><a href="#cb113-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">ARIMA_model =</span> <span class="fu">ARIMA</span>(value <span class="sc">~</span> <span class="fu">pdq</span>(<span class="dv">1</span>,<span class="dv">1</span>,<span class="dv">0</span>))  </span>
-<span id="cb113-9"><a href="#cb113-9" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb113-10"><a href="#cb113-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb113-11"><a href="#cb113-11" aria-hidden="true" tabindex="-1"></a>usr_forecast <span class="ot">&lt;-</span> <span class="fu">forecast</span>(fit_usr, <span class="at">h =</span> <span class="dv">20</span>)</span>
-<span id="cb113-12"><a href="#cb113-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb113-13"><a href="#cb113-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb113-14"><a href="#cb113-14" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(usr_forecast, usr_tsibble) <span class="sc">+</span></span>
-<span id="cb113-15"><a href="#cb113-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Quarter"</span>, <span class="at">y =</span> <span class="st">"Predicted Values"</span>, <span class="at">colour =</span> <span class="st">"Forecast Methods"</span>) <span class="sc">+</span></span>
-<span id="cb113-16"><a href="#cb113-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">guides</span>(<span class="at">colour =</span> <span class="st">"none"</span>, <span class="at">linetype =</span> <span class="st">"none"</span>) <span class="sc">+</span>  </span>
-<span id="cb113-17"><a href="#cb113-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb104"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb104-1"><a href="#cb104-1" aria-hidden="true" tabindex="-1"></a>usr_tsibble<span class="ot">&lt;-</span><span class="fu">as_tsibble</span>(usr_ts)</span>
+<span id="cb104-2"><a href="#cb104-2" aria-hidden="true" tabindex="-1"></a>fit_usr <span class="ot">&lt;-</span> usr_tsibble<span class="sc">%&gt;%</span></span>
+<span id="cb104-3"><a href="#cb104-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">model</span>(</span>
+<span id="cb104-4"><a href="#cb104-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">Mean  =</span> <span class="fu">MEAN</span>(value),</span>
+<span id="cb104-5"><a href="#cb104-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">Naive =</span> <span class="fu">NAIVE</span>(value),</span>
+<span id="cb104-6"><a href="#cb104-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">SNaive =</span> <span class="fu">SNAIVE</span>(value),</span>
+<span id="cb104-7"><a href="#cb104-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">Drift =</span> <span class="fu">RW</span>(value <span class="sc">~</span> <span class="fu">drift</span>()),</span>
+<span id="cb104-8"><a href="#cb104-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">ARIMA_model =</span> <span class="fu">ARIMA</span>(value <span class="sc">~</span> <span class="fu">pdq</span>(<span class="dv">1</span>,<span class="dv">1</span>,<span class="dv">0</span>))  </span>
+<span id="cb104-9"><a href="#cb104-9" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb104-10"><a href="#cb104-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb104-11"><a href="#cb104-11" aria-hidden="true" tabindex="-1"></a>usr_forecast <span class="ot">&lt;-</span> <span class="fu">forecast</span>(fit_usr, <span class="at">h =</span> <span class="dv">20</span>)</span>
+<span id="cb104-12"><a href="#cb104-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb104-13"><a href="#cb104-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb104-14"><a href="#cb104-14" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(usr_forecast, usr_tsibble) <span class="sc">+</span></span>
+<span id="cb104-15"><a href="#cb104-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Quarter"</span>, <span class="at">y =</span> <span class="st">"Predicted Values"</span>, <span class="at">colour =</span> <span class="st">"Forecast Methods"</span>) <span class="sc">+</span></span>
+<span id="cb104-16"><a href="#cb104-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">guides</span>(<span class="at">colour =</span> <span class="st">"none"</span>, <span class="at">linetype =</span> <span class="st">"none"</span>) <span class="sc">+</span>  </span>
+<span id="cb104-17"><a href="#cb104-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div>
@@ -3965,14 +3972,57 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 </figure>
 </div>
 </div>
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb105"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb105-1"><a href="#cb105-1" aria-hidden="true" tabindex="-1"></a>acc_train_usr <span class="ot">&lt;-</span> <span class="fu">accuracy</span>(fit_usr) <span class="sc">%&gt;%</span></span>
+<span id="cb105-2"><a href="#cb105-2" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(.model, RMSE, MAE, MAPE, MASE, ACF1) <span class="sc">%&gt;%</span></span>
+<span id="cb105-3"><a href="#cb105-3" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">arrange</span>(RMSE)</span>
+<span id="cb105-4"><a href="#cb105-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb105-5"><a href="#cb105-5" aria-hidden="true" tabindex="-1"></a>h <span class="ot">&lt;-</span> <span class="dv">20</span></span>
+<span id="cb105-6"><a href="#cb105-6" aria-hidden="true" tabindex="-1"></a>n <span class="ot">&lt;-</span> <span class="fu">nrow</span>(usr_tsibble)</span>
+<span id="cb105-7"><a href="#cb105-7" aria-hidden="true" tabindex="-1"></a>usr_train <span class="ot">&lt;-</span> usr_tsibble <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">slice_head</span>(<span class="at">n =</span> n <span class="sc">-</span> h)</span>
+<span id="cb105-8"><a href="#cb105-8" aria-hidden="true" tabindex="-1"></a>usr_test  <span class="ot">&lt;-</span> usr_tsibble <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">slice_tail</span>(<span class="at">n =</span> h)</span>
+<span id="cb105-9"><a href="#cb105-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb105-10"><a href="#cb105-10" aria-hidden="true" tabindex="-1"></a>fit_train_usr <span class="ot">&lt;-</span> usr_train <span class="sc">%&gt;%</span></span>
+<span id="cb105-11"><a href="#cb105-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">model</span>(</span>
+<span id="cb105-12"><a href="#cb105-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">Mean        =</span> <span class="fu">MEAN</span>(value),</span>
+<span id="cb105-13"><a href="#cb105-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">Naive       =</span> <span class="fu">NAIVE</span>(value),</span>
+<span id="cb105-14"><a href="#cb105-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">SNaive      =</span> <span class="fu">SNAIVE</span>(value),</span>
+<span id="cb105-15"><a href="#cb105-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">Drift       =</span> <span class="fu">RW</span>(value <span class="sc">~</span> <span class="fu">drift</span>()),</span>
+<span id="cb105-16"><a href="#cb105-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">ARIMA_model =</span> <span class="fu">ARIMA</span>(value <span class="sc">~</span> <span class="fu">pdq</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>))</span>
+<span id="cb105-17"><a href="#cb105-17" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb105-18"><a href="#cb105-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb105-19"><a href="#cb105-19" aria-hidden="true" tabindex="-1"></a>fc_test_usr <span class="ot">&lt;-</span> <span class="fu">forecast</span>(fit_train_usr, <span class="at">h =</span> h)</span>
+<span id="cb105-20"><a href="#cb105-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb105-21"><a href="#cb105-21" aria-hidden="true" tabindex="-1"></a>acc_test_usr <span class="ot">&lt;-</span> <span class="fu">accuracy</span>(fc_test_usr, usr_test) <span class="sc">%&gt;%</span></span>
+<span id="cb105-22"><a href="#cb105-22" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(.model, RMSE, MAE, MAPE, MASE, ACF1) <span class="sc">%&gt;%</span></span>
+<span id="cb105-23"><a href="#cb105-23" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">arrange</span>(RMSE)</span>
+<span id="cb105-24"><a href="#cb105-24" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(acc_test_usr)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 5 × 6
+  .model       RMSE   MAE  MAPE  MASE  ACF1
+  &lt;chr&gt;       &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+1 Mean         2.92  2.77 128.    NaN 0.706
+2 Naive        4.44  4.18  94.6   NaN 0.706
+3 SNaive       4.44  4.18  94.8   NaN 0.706
+4 ARIMA_model  4.46  4.20  96.0   NaN 0.706
+5 Drift        5.02  4.73 109.    NaN 0.715</code></pre>
+</div>
 </div>
 </div>
 <div id="tabset-8-3" class="tab-pane" role="tabpanel" aria-labelledby="tabset-8-3-tab">
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb114"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb114-1"><a href="#cb114-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_util</span>(kr_forecast_result, kr_ts, <span class="dv">756</span>, kr_fit)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb107"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb107-1"><a href="#cb107-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_util</span>(kr_forecast_result, kr_ts, <span class="dv">756</span>, kr_fit)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
+<div class="cell-output cell-output-stdout">
+<pre><code>                       ME         RMSE          MAE          MPE     MAPE
+Training set -4.83016e-08 4.599619e-06 1.730312e-06 -0.007368396 0.193281
+                  MASE          ACF1
+Training set 0.0256441 -0.0005579747</code></pre>
+</div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -3986,24 +4036,24 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb115"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb115-1"><a href="#cb115-1" aria-hidden="true" tabindex="-1"></a>import_tsibble<span class="ot">&lt;-</span><span class="fu">as_tsibble</span>(import_ts)</span>
-<span id="cb115-2"><a href="#cb115-2" aria-hidden="true" tabindex="-1"></a>fit_import <span class="ot">&lt;-</span> import_tsibble<span class="sc">%&gt;%</span></span>
-<span id="cb115-3"><a href="#cb115-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">model</span>(</span>
-<span id="cb115-4"><a href="#cb115-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">Mean  =</span> <span class="fu">MEAN</span>(value),</span>
-<span id="cb115-5"><a href="#cb115-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">Naive =</span> <span class="fu">NAIVE</span>(value),</span>
-<span id="cb115-6"><a href="#cb115-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">SNaive =</span> <span class="fu">SNAIVE</span>(value),</span>
-<span id="cb115-7"><a href="#cb115-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">Drift =</span> <span class="fu">RW</span>(value <span class="sc">~</span> <span class="fu">drift</span>()),</span>
-<span id="cb115-8"><a href="#cb115-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">ARIMA_model =</span> <span class="fu">ARIMA</span>(</span>
-<span id="cb115-9"><a href="#cb115-9" aria-hidden="true" tabindex="-1"></a>      value <span class="sc">~</span> <span class="fu">pdq</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">2</span>) <span class="sc">+</span> <span class="fu">PDQ</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>, <span class="at">period =</span> <span class="dv">12</span>) <span class="sc">+</span> <span class="fu">drift</span>())  </span>
-<span id="cb115-10"><a href="#cb115-10" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb115-11"><a href="#cb115-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb115-12"><a href="#cb115-12" aria-hidden="true" tabindex="-1"></a>import_forecast <span class="ot">&lt;-</span> <span class="fu">forecast</span>(fit_import, <span class="at">h =</span> <span class="dv">36</span>)</span>
-<span id="cb115-13"><a href="#cb115-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb115-14"><a href="#cb115-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb115-15"><a href="#cb115-15" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(import_forecast, import_tsibble) <span class="sc">+</span></span>
-<span id="cb115-16"><a href="#cb115-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Quarter"</span>, <span class="at">y =</span> <span class="st">"Predicted Values"</span>, <span class="at">colour =</span> <span class="st">"Forecast Methods"</span>) <span class="sc">+</span></span>
-<span id="cb115-17"><a href="#cb115-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">guides</span>(<span class="at">colour =</span> <span class="st">"none"</span>, <span class="at">linetype =</span> <span class="st">"none"</span>) <span class="sc">+</span>  </span>
-<span id="cb115-18"><a href="#cb115-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb109"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb109-1"><a href="#cb109-1" aria-hidden="true" tabindex="-1"></a>import_tsibble<span class="ot">&lt;-</span><span class="fu">as_tsibble</span>(import_ts)</span>
+<span id="cb109-2"><a href="#cb109-2" aria-hidden="true" tabindex="-1"></a>fit_import <span class="ot">&lt;-</span> import_tsibble<span class="sc">%&gt;%</span></span>
+<span id="cb109-3"><a href="#cb109-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">model</span>(</span>
+<span id="cb109-4"><a href="#cb109-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">Mean  =</span> <span class="fu">MEAN</span>(value),</span>
+<span id="cb109-5"><a href="#cb109-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">Naive =</span> <span class="fu">NAIVE</span>(value),</span>
+<span id="cb109-6"><a href="#cb109-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">SNaive =</span> <span class="fu">SNAIVE</span>(value),</span>
+<span id="cb109-7"><a href="#cb109-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">Drift =</span> <span class="fu">RW</span>(value <span class="sc">~</span> <span class="fu">drift</span>()),</span>
+<span id="cb109-8"><a href="#cb109-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">ARIMA_model =</span> <span class="fu">ARIMA</span>(</span>
+<span id="cb109-9"><a href="#cb109-9" aria-hidden="true" tabindex="-1"></a>      value <span class="sc">~</span> <span class="fu">pdq</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">2</span>) <span class="sc">+</span> <span class="fu">PDQ</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>, <span class="at">period =</span> <span class="dv">12</span>) <span class="sc">+</span> <span class="fu">drift</span>())  </span>
+<span id="cb109-10"><a href="#cb109-10" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb109-11"><a href="#cb109-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb109-12"><a href="#cb109-12" aria-hidden="true" tabindex="-1"></a>import_forecast <span class="ot">&lt;-</span> <span class="fu">forecast</span>(fit_import, <span class="at">h =</span> <span class="dv">36</span>)</span>
+<span id="cb109-13"><a href="#cb109-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb109-14"><a href="#cb109-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb109-15"><a href="#cb109-15" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(import_forecast, import_tsibble) <span class="sc">+</span></span>
+<span id="cb109-16"><a href="#cb109-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Quarter"</span>, <span class="at">y =</span> <span class="st">"Predicted Values"</span>, <span class="at">colour =</span> <span class="st">"Forecast Methods"</span>) <span class="sc">+</span></span>
+<span id="cb109-17"><a href="#cb109-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">guides</span>(<span class="at">colour =</span> <span class="st">"none"</span>, <span class="at">linetype =</span> <span class="st">"none"</span>) <span class="sc">+</span>  </span>
+<span id="cb109-18"><a href="#cb109-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div>
@@ -4012,30 +4062,67 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 </figure>
 </div>
 </div>
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb110"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb110-1"><a href="#cb110-1" aria-hidden="true" tabindex="-1"></a>acc_train_import <span class="ot">&lt;-</span> <span class="fu">accuracy</span>(fit_import) <span class="sc">%&gt;%</span></span>
+<span id="cb110-2"><a href="#cb110-2" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(.model, RMSE, MAE, MAPE, MASE, ACF1) <span class="sc">%&gt;%</span></span>
+<span id="cb110-3"><a href="#cb110-3" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">arrange</span>(RMSE)</span>
+<span id="cb110-4"><a href="#cb110-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb110-5"><a href="#cb110-5" aria-hidden="true" tabindex="-1"></a>h <span class="ot">&lt;-</span> <span class="dv">36</span></span>
+<span id="cb110-6"><a href="#cb110-6" aria-hidden="true" tabindex="-1"></a>n <span class="ot">&lt;-</span> <span class="fu">nrow</span>(import_tsibble)</span>
+<span id="cb110-7"><a href="#cb110-7" aria-hidden="true" tabindex="-1"></a>import_train <span class="ot">&lt;-</span> import_tsibble <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">slice_head</span>(<span class="at">n =</span> n <span class="sc">-</span> h)</span>
+<span id="cb110-8"><a href="#cb110-8" aria-hidden="true" tabindex="-1"></a>import_test  <span class="ot">&lt;-</span> import_tsibble <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">slice_tail</span>(<span class="at">n =</span> h)</span>
+<span id="cb110-9"><a href="#cb110-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb110-10"><a href="#cb110-10" aria-hidden="true" tabindex="-1"></a>fit_train_import <span class="ot">&lt;-</span> import_train <span class="sc">%&gt;%</span></span>
+<span id="cb110-11"><a href="#cb110-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">model</span>(</span>
+<span id="cb110-12"><a href="#cb110-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">Mean        =</span> <span class="fu">MEAN</span>(value),</span>
+<span id="cb110-13"><a href="#cb110-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">Naive       =</span> <span class="fu">NAIVE</span>(value),</span>
+<span id="cb110-14"><a href="#cb110-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">SNaive      =</span> <span class="fu">SNAIVE</span>(value),</span>
+<span id="cb110-15"><a href="#cb110-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">Drift       =</span> <span class="fu">RW</span>(value <span class="sc">~</span> <span class="fu">drift</span>()),</span>
+<span id="cb110-16"><a href="#cb110-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">ARIMA_model =</span> <span class="fu">ARIMA</span>(value <span class="sc">~</span> <span class="fu">pdq</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>))</span>
+<span id="cb110-17"><a href="#cb110-17" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb110-18"><a href="#cb110-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb110-19"><a href="#cb110-19" aria-hidden="true" tabindex="-1"></a>fc_test_import <span class="ot">&lt;-</span> <span class="fu">forecast</span>(fit_train_import, <span class="at">h =</span> h)</span>
+<span id="cb110-20"><a href="#cb110-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb110-21"><a href="#cb110-21" aria-hidden="true" tabindex="-1"></a>acc_test_import <span class="ot">&lt;-</span> <span class="fu">accuracy</span>(fc_test_import, import_test) <span class="sc">%&gt;%</span></span>
+<span id="cb110-22"><a href="#cb110-22" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(.model, RMSE, MAE, MAPE, MASE, ACF1) <span class="sc">%&gt;%</span></span>
+<span id="cb110-23"><a href="#cb110-23" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">arrange</span>(RMSE)</span>
+<span id="cb110-24"><a href="#cb110-24" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(acc_test_import)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 5 × 6
+  .model          RMSE      MAE  MAPE  MASE   ACF1
+  &lt;chr&gt;          &lt;dbl&gt;    &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt;
+1 SNaive       974714.  806253.  13.7   NaN 0.0806
+2 ARIMA_model 1733375. 1618739.  27.8   NaN 0.368 
+3 Naive       1807909. 1722708.  29.5   NaN 0.219 
+4 Drift       2142301. 2045964.  34.9   NaN 0.342 
+5 Mean        2931573. 2875077.  47.0   NaN 0.219 </code></pre>
+</div>
 </div>
 </div>
 <div id="tabset-8-5" class="tab-pane" role="tabpanel" aria-labelledby="tabset-8-5-tab">
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb116"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb116-1"><a href="#cb116-1" aria-hidden="true" tabindex="-1"></a>export_tsibble<span class="ot">&lt;-</span><span class="fu">as_tsibble</span>(export_ts)</span>
-<span id="cb116-2"><a href="#cb116-2" aria-hidden="true" tabindex="-1"></a>fit_export <span class="ot">&lt;-</span> export_tsibble<span class="sc">%&gt;%</span></span>
-<span id="cb116-3"><a href="#cb116-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">model</span>(</span>
-<span id="cb116-4"><a href="#cb116-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">Mean  =</span> <span class="fu">MEAN</span>(value),</span>
-<span id="cb116-5"><a href="#cb116-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">Naive =</span> <span class="fu">NAIVE</span>(value),</span>
-<span id="cb116-6"><a href="#cb116-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">SNaive =</span> <span class="fu">SNAIVE</span>(value),</span>
-<span id="cb116-7"><a href="#cb116-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">Drift =</span> <span class="fu">RW</span>(value <span class="sc">~</span> <span class="fu">drift</span>()),</span>
-<span id="cb116-8"><a href="#cb116-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">ARIMA_model =</span> <span class="fu">ARIMA</span>(</span>
-<span id="cb116-9"><a href="#cb116-9" aria-hidden="true" tabindex="-1"></a>      value <span class="sc">~</span> <span class="fu">pdq</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>) <span class="sc">+</span> <span class="fu">PDQ</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>, <span class="at">period =</span> <span class="dv">12</span>) <span class="sc">+</span> <span class="fu">drift</span>())  </span>
-<span id="cb116-10"><a href="#cb116-10" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb116-11"><a href="#cb116-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb116-12"><a href="#cb116-12" aria-hidden="true" tabindex="-1"></a>export_forecast <span class="ot">&lt;-</span> <span class="fu">forecast</span>(fit_export, <span class="at">h =</span> <span class="dv">36</span>)</span>
-<span id="cb116-13"><a href="#cb116-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb116-14"><a href="#cb116-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb116-15"><a href="#cb116-15" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(export_forecast, export_tsibble) <span class="sc">+</span></span>
-<span id="cb116-16"><a href="#cb116-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Quarter"</span>, <span class="at">y =</span> <span class="st">"Predicted Values"</span>, <span class="at">colour =</span> <span class="st">"Forecast Methods"</span>) <span class="sc">+</span></span>
-<span id="cb116-17"><a href="#cb116-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">guides</span>(<span class="at">colour =</span> <span class="st">"none"</span>, <span class="at">linetype =</span> <span class="st">"none"</span>) <span class="sc">+</span>  </span>
-<span id="cb116-18"><a href="#cb116-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb112"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb112-1"><a href="#cb112-1" aria-hidden="true" tabindex="-1"></a>export_tsibble<span class="ot">&lt;-</span><span class="fu">as_tsibble</span>(export_ts)</span>
+<span id="cb112-2"><a href="#cb112-2" aria-hidden="true" tabindex="-1"></a>fit_export <span class="ot">&lt;-</span> export_tsibble<span class="sc">%&gt;%</span></span>
+<span id="cb112-3"><a href="#cb112-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">model</span>(</span>
+<span id="cb112-4"><a href="#cb112-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">Mean  =</span> <span class="fu">MEAN</span>(value),</span>
+<span id="cb112-5"><a href="#cb112-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">Naive =</span> <span class="fu">NAIVE</span>(value),</span>
+<span id="cb112-6"><a href="#cb112-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">SNaive =</span> <span class="fu">SNAIVE</span>(value),</span>
+<span id="cb112-7"><a href="#cb112-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">Drift =</span> <span class="fu">RW</span>(value <span class="sc">~</span> <span class="fu">drift</span>()),</span>
+<span id="cb112-8"><a href="#cb112-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">ARIMA_model =</span> <span class="fu">ARIMA</span>(</span>
+<span id="cb112-9"><a href="#cb112-9" aria-hidden="true" tabindex="-1"></a>      value <span class="sc">~</span> <span class="fu">pdq</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>) <span class="sc">+</span> <span class="fu">PDQ</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>, <span class="at">period =</span> <span class="dv">12</span>) <span class="sc">+</span> <span class="fu">drift</span>())  </span>
+<span id="cb112-10"><a href="#cb112-10" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb112-11"><a href="#cb112-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb112-12"><a href="#cb112-12" aria-hidden="true" tabindex="-1"></a>export_forecast <span class="ot">&lt;-</span> <span class="fu">forecast</span>(fit_export, <span class="at">h =</span> <span class="dv">36</span>)</span>
+<span id="cb112-13"><a href="#cb112-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb112-14"><a href="#cb112-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb112-15"><a href="#cb112-15" aria-hidden="true" tabindex="-1"></a><span class="fu">autoplot</span>(export_forecast, export_tsibble) <span class="sc">+</span></span>
+<span id="cb112-16"><a href="#cb112-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Quarter"</span>, <span class="at">y =</span> <span class="st">"Predicted Values"</span>, <span class="at">colour =</span> <span class="st">"Forecast Methods"</span>) <span class="sc">+</span></span>
+<span id="cb112-17"><a href="#cb112-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">guides</span>(<span class="at">colour =</span> <span class="st">"none"</span>, <span class="at">linetype =</span> <span class="st">"none"</span>) <span class="sc">+</span>  </span>
+<span id="cb112-18"><a href="#cb112-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div>
@@ -4044,14 +4131,55 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 </figure>
 </div>
 </div>
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb113"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb113-1"><a href="#cb113-1" aria-hidden="true" tabindex="-1"></a>acc_train_export <span class="ot">&lt;-</span> <span class="fu">accuracy</span>(fit_export) <span class="sc">%&gt;%</span></span>
+<span id="cb113-2"><a href="#cb113-2" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(.model, RMSE, MAE, MAPE, MASE, ACF1) <span class="sc">%&gt;%</span></span>
+<span id="cb113-3"><a href="#cb113-3" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">arrange</span>(RMSE)</span>
+<span id="cb113-4"><a href="#cb113-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb113-5"><a href="#cb113-5" aria-hidden="true" tabindex="-1"></a>h <span class="ot">&lt;-</span> <span class="dv">36</span></span>
+<span id="cb113-6"><a href="#cb113-6" aria-hidden="true" tabindex="-1"></a>n <span class="ot">&lt;-</span> <span class="fu">nrow</span>(export_tsibble)</span>
+<span id="cb113-7"><a href="#cb113-7" aria-hidden="true" tabindex="-1"></a>export_train <span class="ot">&lt;-</span> export_tsibble <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">slice_head</span>(<span class="at">n =</span> n <span class="sc">-</span> h)</span>
+<span id="cb113-8"><a href="#cb113-8" aria-hidden="true" tabindex="-1"></a>export_test  <span class="ot">&lt;-</span> export_tsibble <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">slice_tail</span>(<span class="at">n =</span> h)</span>
+<span id="cb113-9"><a href="#cb113-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb113-10"><a href="#cb113-10" aria-hidden="true" tabindex="-1"></a>fit_train_export <span class="ot">&lt;-</span> export_train <span class="sc">%&gt;%</span></span>
+<span id="cb113-11"><a href="#cb113-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">model</span>(</span>
+<span id="cb113-12"><a href="#cb113-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">Mean        =</span> <span class="fu">MEAN</span>(value),</span>
+<span id="cb113-13"><a href="#cb113-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">Naive       =</span> <span class="fu">NAIVE</span>(value),</span>
+<span id="cb113-14"><a href="#cb113-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">SNaive      =</span> <span class="fu">SNAIVE</span>(value),</span>
+<span id="cb113-15"><a href="#cb113-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">Drift       =</span> <span class="fu">RW</span>(value <span class="sc">~</span> <span class="fu">drift</span>()),</span>
+<span id="cb113-16"><a href="#cb113-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">ARIMA_model =</span> <span class="fu">ARIMA</span>(value <span class="sc">~</span> <span class="fu">pdq</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>))</span>
+<span id="cb113-17"><a href="#cb113-17" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb113-18"><a href="#cb113-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb113-19"><a href="#cb113-19" aria-hidden="true" tabindex="-1"></a>fc_test_export <span class="ot">&lt;-</span> <span class="fu">forecast</span>(fit_train_export, <span class="at">h =</span> h)</span>
+<span id="cb113-20"><a href="#cb113-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb113-21"><a href="#cb113-21" aria-hidden="true" tabindex="-1"></a>acc_test_export <span class="ot">&lt;-</span> <span class="fu">accuracy</span>(fc_test_export, export_test) <span class="sc">%&gt;%</span></span>
+<span id="cb113-22"><a href="#cb113-22" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(.model, RMSE, MAE, MAPE, MASE, ACF1) <span class="sc">%&gt;%</span></span>
+<span id="cb113-23"><a href="#cb113-23" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">arrange</span>(RMSE)</span>
+<span id="cb113-24"><a href="#cb113-24" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(acc_test_export)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 5 × 6
+  .model          RMSE      MAE  MAPE  MASE  ACF1
+  &lt;chr&gt;          &lt;dbl&gt;    &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+1 ARIMA_model  755978.  598155.  6.08   NaN 0.269
+2 Drift       1188767.  982148.  9.36   NaN 0.349
+3 SNaive      1506568. 1234981. 11.9    NaN 0.555
+4 Naive       1554453. 1314216. 12.5    NaN 0.492
+5 Mean        6031747. 5963983. 59.2    NaN 0.492</code></pre>
+</div>
 </div>
 </div>
 <div id="tabset-8-6" class="tab-pane" role="tabpanel" aria-labelledby="tabset-8-6-tab">
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb117"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb117-1"><a href="#cb117-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_util</span>(yield_3y_forecast_result,yield_3y_ts,<span class="dv">756</span>, yield_3y_fit)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb115"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb115-1"><a href="#cb115-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_util</span>(yield_3y_forecast_result,yield_3y_ts,<span class="dv">756</span>, yield_3y_fit)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
+<div class="cell-output cell-output-stdout">
+<pre><code>                        ME     RMSE      MAE MPE MAPE       MASE          ACF1
+Training set -0.0001976061 0.082926 0.053429 NaN  Inf 0.06586083 -0.0002478776</code></pre>
+</div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -4065,8 +4193,12 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb118"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb118-1"><a href="#cb118-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_util</span>(yield_10y_forecast_result,yield_10y_ts,<span class="dv">756</span>, yield_10y_fit)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb117"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb117-1"><a href="#cb117-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_util</span>(yield_10y_forecast_result,yield_10y_ts,<span class="dv">756</span>, yield_10y_fit)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
+<div class="cell-output cell-output-stdout">
+<pre><code>                       ME       RMSE        MAE MPE MAPE       MASE        ACF1
+Training set 1.860283e-05 0.08423856 0.05456338 NaN  Inf 0.07908904 0.000947304</code></pre>
+</div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -4106,14 +4238,57 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 </figure>
 </div>
 </div>
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb120"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb120-1"><a href="#cb120-1" aria-hidden="true" tabindex="-1"></a>acc_train_house <span class="ot">&lt;-</span> <span class="fu">accuracy</span>(fit_house) <span class="sc">%&gt;%</span></span>
+<span id="cb120-2"><a href="#cb120-2" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(.model, RMSE, MAE, MAPE, MASE, ACF1) <span class="sc">%&gt;%</span></span>
+<span id="cb120-3"><a href="#cb120-3" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">arrange</span>(RMSE)</span>
+<span id="cb120-4"><a href="#cb120-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb120-5"><a href="#cb120-5" aria-hidden="true" tabindex="-1"></a>h <span class="ot">&lt;-</span> <span class="dv">36</span></span>
+<span id="cb120-6"><a href="#cb120-6" aria-hidden="true" tabindex="-1"></a>n <span class="ot">&lt;-</span> <span class="fu">nrow</span>(house_tsibble)</span>
+<span id="cb120-7"><a href="#cb120-7" aria-hidden="true" tabindex="-1"></a>house_train <span class="ot">&lt;-</span> house_tsibble <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">slice_head</span>(<span class="at">n =</span> n <span class="sc">-</span> h)</span>
+<span id="cb120-8"><a href="#cb120-8" aria-hidden="true" tabindex="-1"></a>house_test  <span class="ot">&lt;-</span> house_tsibble <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">slice_tail</span>(<span class="at">n =</span> h)</span>
+<span id="cb120-9"><a href="#cb120-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb120-10"><a href="#cb120-10" aria-hidden="true" tabindex="-1"></a>fit_train_house <span class="ot">&lt;-</span> house_train <span class="sc">%&gt;%</span></span>
+<span id="cb120-11"><a href="#cb120-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">model</span>(</span>
+<span id="cb120-12"><a href="#cb120-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">Mean        =</span> <span class="fu">MEAN</span>(value),</span>
+<span id="cb120-13"><a href="#cb120-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">Naive       =</span> <span class="fu">NAIVE</span>(value),</span>
+<span id="cb120-14"><a href="#cb120-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">SNaive      =</span> <span class="fu">SNAIVE</span>(value),</span>
+<span id="cb120-15"><a href="#cb120-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">Drift       =</span> <span class="fu">RW</span>(value <span class="sc">~</span> <span class="fu">drift</span>()),</span>
+<span id="cb120-16"><a href="#cb120-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">ARIMA_model =</span> <span class="fu">ARIMA</span>(value <span class="sc">~</span> <span class="fu">pdq</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>))</span>
+<span id="cb120-17"><a href="#cb120-17" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb120-18"><a href="#cb120-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb120-19"><a href="#cb120-19" aria-hidden="true" tabindex="-1"></a>fc_test_house <span class="ot">&lt;-</span> <span class="fu">forecast</span>(fit_train_house, <span class="at">h =</span> h)</span>
+<span id="cb120-20"><a href="#cb120-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb120-21"><a href="#cb120-21" aria-hidden="true" tabindex="-1"></a>acc_test_house <span class="ot">&lt;-</span> <span class="fu">accuracy</span>(fc_test_house, house_test) <span class="sc">%&gt;%</span></span>
+<span id="cb120-22"><a href="#cb120-22" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(.model, RMSE, MAE, MAPE, MASE, ACF1) <span class="sc">%&gt;%</span></span>
+<span id="cb120-23"><a href="#cb120-23" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">arrange</span>(RMSE)</span>
+<span id="cb120-24"><a href="#cb120-24" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(acc_test_house)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 5 × 6
+  .model       RMSE   MAE  MAPE  MASE  ACF1
+  &lt;chr&gt;       &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+1 SNaive       9.35  8.94  9.02   NaN 0.750
+2 Naive        9.58  9.16  9.25   NaN 0.826
+3 ARIMA_model 12.9  12.3  12.4    NaN 0.828
+4 Drift       14.1  13.4  13.5    NaN 0.849
+5 Mean        18.4  18.2  18.1    NaN 0.826</code></pre>
+</div>
 </div>
 </div>
 <div id="tabset-8-9" class="tab-pane" role="tabpanel" aria-labelledby="tabset-8-9-tab">
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb120"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb120-1"><a href="#cb120-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_util</span>(usd_forecast_result_usd, usd_log, <span class="dv">756</span>, usd_fit)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb122"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb122-1"><a href="#cb122-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_util</span>(usd_forecast_result_usd, usd_log, <span class="dv">756</span>, usd_fit)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
+<div class="cell-output cell-output-stdout">
+<pre><code>                        ME        RMSE         MAE           MPE       MAPE
+Training set -2.652266e-05 0.004617329 0.002876984 -0.0006821367 0.06296298
+                   MASE         ACF1
+Training set 0.04256685 -0.005426123</code></pre>
+</div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -4127,8 +4302,14 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb121"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb121-1"><a href="#cb121-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_util</span>(kospi_forecast_result,kospi_log, <span class="dv">756</span>, kospi_fit)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb124"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb124-1"><a href="#cb124-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_util</span>(kospi_forecast_result,kospi_log, <span class="dv">756</span>, kospi_fit)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
+<div class="cell-output cell-output-stdout">
+<pre><code>                       ME       RMSE        MAE           MPE     MAPE
+Training set 6.399341e-06 0.02516874 0.01110308 -0.0005603165 0.159062
+                   MASE          ACF1
+Training set 0.04857355 -5.962719e-05</code></pre>
+</div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -4142,8 +4323,14 @@ AIC=-54042.5   AICc=-54042.5   BIC=-54021.25</code></pre>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb122"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb122-1"><a href="#cb122-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_util</span>(sp_forecast_result,sp_log, <span class="dv">756</span>, sp_fit)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb126"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb126-1"><a href="#cb126-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_util</span>(sp_forecast_result,sp_log, <span class="dv">756</span>, sp_fit)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
+<div class="cell-output cell-output-stdout">
+<pre><code>                       ME       RMSE         MAE         MPE      MAPE
+Training set 0.0003464546 0.01134116 0.007600309 0.004627061 0.1065019
+                   MASE          ACF1
+Training set 0.05095583 -0.0003861207</code></pre>
+</div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -4253,7 +4440,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
   }
     var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
     var mailtoRegex = new RegExp(/^mailto:/);
-      var filterRegex = new RegExp("https:\/\/zp0217\.quarto\.pub\/assets");
+      var filterRegex = new RegExp('/' + window.location.host + '/');
     var isInternal = (href) => {
         return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
     }
