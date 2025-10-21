@@ -18,19 +18,24 @@ This project explores how and how much U.S. ecomoics transmit to Korea’s econo
 
 This project centers on how U.S. Treasuries—the world’s benchmark for risk-free returns—shape outcomes in Korea’s economy and markets. Treasury moves are not just bond-market trivia; they anchor rates, funding costs, and the global appetite for risk. When the U.S. curve shifts or policy guidance changes, the ripple travels quickly through the won–dollar exchange rate, Korean equities (KOSPI/KODEX), local interest rates and credit, and—after a lag—into the real economy via trade and housing. In short, U.S. rates transmit policy signals and real-economy shocks across markets; Korea, as an open, export-driven economy tightly linked to U.S. demand and capital, feels these waves early and often. By organizing evidence across FX, rates, market behavior, and real-side indicators, this project aims to builds a coherent narrative of how U.S. financial conditions connect to Korean financial and economic outcomes. The goal is to track how U.S. economic condition interacts with Korea’s economics, using a time-series workflow—aligning frequencies.  This project will focus on five main ideas:
 
-U.S. rate shocks & channels.
+- U.S. rate shocks
+
 U.S. Treasury moves embed changing views about policy, inflation, and growth. this project analyzes how these shocks reach Korea through interest-rate differentials, dollar liquidity/risk sentiment, and growth expectations—and when those channels amplify or offset one another.
 
-FX: USD/KRW as the first responder.
+- FX market 
+
 Because FX sits at the center of global pricing and funding, USD/KRW often reacts first. We map when U.S. rate spikes strengthen the dollar and weaken the won, when those moves act as risk-off signals, and how quickly (or slowly) the effects fade.
 
-Korean yield curve & credit conditions.
+- government bond yield:
+
 The KTB curve summarizes Korea’s borrowing costs and growth/inflation expectations. We examine how shifts in the U.S. curve pass through to KTB 3Y/10Y and credit spreads, identifying where transmission is sharp versus sticky, and how it differs across calm and stressed regimes.
 
-Equities: KOSPI/KODEX sector leadership.
+- Equities:
+
 Equities translate rate information into valuations and earnings expectations. We track how sector leadership changes when discount rates rise or fall, spotlighting moments when stocks confirm the message from rates—or contradict it.
 
-Real-side spillovers: trade and housing.
+- Real economics: 
+
 Financial impulses filter into activity with lags. We connect market shocks to export prices/volumes and housing prices/transactions, clarifying when higher rates and a stronger dollar translate into softer trade momentum or tighter real-estate financing—and when resilience shows up instead.
 
 By the end, this project aims to turn these signals into clear, practical guidance: how U.S. Treasury dynamics move Korea’s FX, rates, equities, trade, and housing—and how that understanding can inform policy calibration and resilient portfolio construction.
