@@ -1003,6 +1003,9 @@ SARIMA.c <- function(p_range, d_range, q_range, P_range, D_range, Q_range, data)
 In EDA and univariate section, taking log for S&P500 index and USD index was better, so it will continue to use log transformation. however, here, FX rate needs to be checked
 
 ```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
 
 diff_krw <- diff(ts_krw)
 diff_log_krw <- diff(ts_log_krw)
@@ -1031,6 +1034,9 @@ from the plot, log transformation don't give dramatical change, so for this mode
 ### time series plot
 
 ```{r}
+#| echo: true
+#| code-fold: true
+
 
 p5 <- plot_ly(df3, x = ~Date, y = ~US_KR_3Y, type = "scatter", mode = "lines",
               name = "kor-us 3y bond spread rate") %>%
@@ -1081,12 +1087,19 @@ checkresiduals(fit_auto1)
 ### manual search
 
 ```{r}
+#| echo: true
+#| code-fold: true
+
 m1<- lm(krw~ US_KR_3Y+US_KR_10Y+log_sp500_close+log_usd_index,data = df3)
 summary(m1)
 
 ```
 
-```{r}
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
 library(patchwork)
 res.fit1<- ts(residuals(m1),start = c(2000,12),frequency = 12)
  
@@ -1134,7 +1147,11 @@ model_output_1 <- capture.output(sarima(res.fit1, 0,1,2,1,1,1,12))
 model_output_2 <- capture.output(sarima(res.fit1, 0,0,5,1,0,1,12))
 ```
 
-```{r}
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+
 extract_model_diagnostics <- function(model_output) {
   start_line <- grep("Coefficients", model_output)  # Find where coefficients start
   end_line <- length(model_output)  # Capture till the last line
@@ -1152,6 +1169,7 @@ extract_model_diagnostics(model_output_2)
 ### cross-validation
 
 ```{r,message = F, warning = F}
+
 #| echo: true
 #| code-fold: true
 
@@ -1211,7 +1229,8 @@ kable(rmse_table1, format = "html", digits = 4, caption = "RMSE for 12-Step Fore
 ```{r,warning = F,message = F}
 #| echo: true
 #| code-fold: true
-#| 
+
+
 ggplot(rmse_table1, aes(x = Horizon1)) +
   geom_line(aes(y = RMSE_Model1, color = "SARIMA(0,1,2)(1,1,1)[12]"), size = 1) +
   geom_line(aes(y = RMSE_Model2, color = "SARIMA(0,0,5)(1,0,1)[12]"), size = 1) +
@@ -1246,8 +1265,9 @@ summary(fit_auto1)
 
 ### forecast
 
-```{r}
-
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
 
 fin_short_fit <- auto.arima(xreg1[, "US_KR_3Y"])
 fshort <- forecast(fin_short_fit, h = 32) 
@@ -1269,7 +1289,11 @@ fxreg1 <- cbind(US_KR_3Y = fshort$mean,
 ```
 
 
-```{r}
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
 library(plotly)
 
 fcast1 <- forecast(final_fit1, xreg = fxreg1, h = 32)
