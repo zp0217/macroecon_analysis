@@ -1051,7 +1051,10 @@ layout(yaxis = list(title = "Usd Index", titlefont = list(size = 14), tickfont =
 p9 <- plot_ly(df3, x = ~Date, y = ~krw, type = 'scatter', mode = 'lines',
               name = "KRW/USD spot rate") %>%
   layout(yaxis = list(title = "KRW/USD spot rate", titlefont = list(size = 14), tickfont = list(size = 12)))
-subplot(p5,p6,p7,p8,p9, nrows = 4, shareX = TRUE, titleY = TRUE) %>%
+subplot(p5,p6,nrows = 2, shareX = TRUE, titleY = TRUE) %>%
+  layout(xaxis = list(title = "Date"))
+
+subplot(p7,p8,p9, nrows = 3, shareX = TRUE, titleY = TRUE) %>%
   layout(xaxis = list(title = "Date"))
 ```
 
