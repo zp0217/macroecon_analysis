@@ -210,7 +210,7 @@ var:
 
 # VAR model
 
-## equity: s&p500, vix, us_yield_spread,KOSPI index
+### equity: s&p500, vix, us_yield_spread,KOSPI index
 
 
 ::: panel-tabset
@@ -874,7 +874,7 @@ fig3
 
 
 
-#SARIMAX model :  rate difference & FX: USD/KRW spot rate ~ us-korea spread rate 3years+ us-korea spread rate 10years+ S&P500+ dollar index
+# SARIMAX model: USD/KRW spot rate ~ us-korea spread rate 3years+ us-korea spread rate 10years+ S&P500+ dollar index
 
 
 ### data cleaning
@@ -948,6 +948,9 @@ ts_log_krw <- ts(log(df3$krw),
 ### manual search utility function
 
 ```{r}
+#| echo: true
+#| code-fold: true
+
 SARIMA.c <- function(p_range, d_range, q_range, P_range, D_range, Q_range, data) {
   
   # Set seasonal period
@@ -994,6 +997,8 @@ SARIMA.c <- function(p_range, d_range, q_range, P_range, D_range, Q_range, data)
   
 ```
 
+
+### log transformation 
 
 In EDA and univariate section, taking log for S&P500 index and USD index was better, so it will continue to use log transformation. however, here, FX rate needs to be checked
 
