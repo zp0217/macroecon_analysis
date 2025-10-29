@@ -135,7 +135,8 @@ df$US_KR_10Y<- df$US_10Y - df$KR_10Y
 
 trade<- read_csv("../data/trade/trade_merged.csv")
 trade$balance<- trade$export_USD - trade$import_USD
-
+exports<- trade%>%
+  dplyr::select(Date,export_USD)
 #trade_ts <- trade %>%
  # as_tsibble(index = Date, key = Type)
 
@@ -584,10 +585,12 @@ kor_monthly <- kr %>%
   mutate(Date = ceiling_date(year_month, "month") - days(1))%>%
   dplyr::select(Date,krw)
 
-trade_monthly <-exports %>%
+export<- trade%>%
+  dplyr::select(Date,export_USD)
+trade_monthly <-export %>%
   mutate(Date = as.Date(Date)) %>%
   mutate(Date = ceiling_date(Date, "month") - days(1)) %>%
-  rename(export_usd = USD)%>%
+  rename(export_usd = export_USD)%>%
   dplyr::select(Date, export_usd)
 
 usd_monthly<-usd%>%
@@ -1096,6 +1099,8 @@ In EDA and univariate section, taking log for S&P500 index and USD index was bet
 #| echo: true
 #| code-fold: true
 
+diff_krw <- diff(ts_krw)
+diff_log_krw <- diff(ts_log_krw)
 
 
 p1 <- ggplot() +
