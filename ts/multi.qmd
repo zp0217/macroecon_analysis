@@ -133,26 +133,11 @@ df$US_KR_10Y<- df$US_10Y - df$KR_10Y
 
 #import & export data 
 
-imports <- read_csv(here::here("data/trade", "imports.csv"))
-exports <- read_csv(here::here("data/trade", "exports.csv"))
+trade<- read_csv("../data/trade/trade_merged.csv")
+trade$balance<- trade$export_USD - trade$import_USD
 
-clean_date <- function(x) {
-  as.Date(paste0(sub("^([0-9]{4})([0-9]{2})$", "\\1-\\2", gsub("/", "-", as.character(x))), "-01"))
-}
-
-imports <- imports %>%
-  mutate(Date = clean_date(Date),
-         Type = "Imports")
-
-exports <- exports %>%
-  mutate(Date = clean_date(Date),
-         Type = "Exports")
-trade <- bind_rows(imports, exports)
-
-names(trade)[2] <- "Value"
-
-trade_ts <- trade %>%
-  as_tsibble(index = Date, key = Type)
+#trade_ts <- trade %>%
+ # as_tsibble(index = Date, key = Type)
 
 
 # S&P500 data
@@ -191,16 +176,62 @@ us_kr_spreads_10y <- df %>%
   dplyr::select(Date, US_KR_10Y) %>%
   mutate(Date = as.Date(Date))
 
+# balance of payment(debt,equity)
+
+bp<- read_csv("../data/bp.csv")%>%
+  mutate(Date = ymd(Date)) %>%
+  rename(debt_securities = "Debt securities of P.I., Liabilities")%>%
+  rename(equity_securities = "Equity securities of P.I., Liabilities")%>%
+  arrange(Date)
+
+bp_debt<- data.frame(bp$Date,bp$debt_securities)
+bp_equity<- data.frame(bp$Date,bp$equity_securities)
+bp_debt<- bp_debt%>%rename(Date = bp.Date, debt_securities= bp.debt_securities)
+bp_equity<- bp_equity%>%rename(Date = bp.Date, equity_securities= bp.equity_securities)
+
+#oil price 
+
+oil<- read_csv("../data/oil.csv")%>%
+  rename(Date = observation_date)%>%
+  rename(wti = DCOILWTICO)%>%
+  mutate(Date = ymd(Date)) %>%
+  arrange(Date)%>%
+  fill(wti, .direction = "down")
+
+debt_monthly <- bp_debt %>%
+  mutate(year_month = floor_date(Date, "month")) %>%
+  group_by(year_month) %>%
+  slice_tail(n = 1) %>%
+  ungroup() %>%
+  mutate(Date = ceiling_date(year_month, "month") - days(1))%>%
+  dplyr::select(Date,debt_securities)
+
+equity_monthly <- bp_equity %>%
+  mutate(year_month = floor_date(Date, "month")) %>%
+  group_by(year_month) %>%
+  slice_tail(n = 1) %>%
+  ungroup() %>%
+  mutate(Date = ceiling_date(year_month, "month") - days(1))%>%
+  dplyr::select(Date,equity_securities)
+
+
+vix_monthly <- vix %>%
+  mutate(year_month = floor_date(Date, "month")) %>%
+  group_by(year_month) %>%
+  slice_tail(n = 1) %>%
+  ungroup() %>%
+  mutate(Date = ceiling_date(year_month, "month") - days(1))%>%
+  dplyr::select(Date,vix)
 
 ```
 
 
 - Models 
-arimax: 
+Sarimax: 
 
-1. korea yield spread rate ~ us yield spread rate+ us ffr+ bok rate 
+1.  South korea exports(vs USA) ~ VIX + US manufacturing Index + KRW/USD spot rate
 
-2.  rate difference & FX: USD/KRW spot rate ~ us-korea spread rate 3years+ us-korea spread rate 3years+ S&P500 + dollar index
+2.   USD/KRW spot rate ~ us-korea spread rate 3years+ us-korea spread rate 3years+ S&P500 + dollar index
 
 var: 
 
@@ -645,7 +676,7 @@ summary(fit <- VAR(new_df2, p=3, type="both"))
 #| code-fold: true
 
 
-n=length(df2$Date) #392
+n=length(df2$Date)
 k=98 #25% of data for training
 #n-k=294; 294/12=24.5
 rmse1 <- matrix(NA, 294,3) #here 294 is n-k
@@ -865,15 +896,6 @@ fig3
 
 
 
-
-
-
-1. korea yield spread rate ~ us yield spread rate+ us ffr+ bok rate
-
-2.  rate difference & FX: USD/KRW spot rate ~ us-korea spread rate 3years+ us-korea spread rate 3years+ VIX+ dollar index
-
-
-
 # SARIMAX model: USD/KRW spot rate ~ us-korea spread rate 3years+ us-korea spread rate 10years+ S&P500+ dollar index
 
 
@@ -901,14 +923,22 @@ spread_10y_monthly <- us_kr_spreads_10y%>%
   dplyr::select(Date,US_KR_10Y)
 
 
-sp500_monthly<-sp500%>%
+sp500_monthly <-
+  sp500 %>%
   mutate(year_month = floor_date(Date, "month")) %>%
   group_by(year_month) %>%
-  slice_tail(n = 1) %>%
+  slice_tail(n = 1) %>%               
   ungroup() %>%
-  mutate(Date = ceiling_date(year_month, "month") - days(1))%>%
-  dplyr::select(Date,Close)%>%
-  rename(sp500_close = Close)
+  mutate(Date = ceiling_date(year_month, "month") - days(1)) %>%  
+  dplyr::select(Date, Close) %>%
+  rename(sp500_close = Close) %>%
+  arrange(Date) %>%
+  mutate(
+    return = sp500_close / lag(sp500_close) - 1,      
+    log_return = log(sp500_close) - log(lag(sp500_close))
+  )%>%
+  dplyr::select(Date,sp500_close)
+
 
 usd_monthly<-usd%>%
   mutate(year_month = floor_date(Date, "month")) %>%
@@ -927,6 +957,9 @@ kor_monthly <- kr %>%
   dplyr::select(Date,krw)
 
 
+
+
+
 df3<- spread_3y_monthly%>%
   left_join(spread_10y_monthly,by = "Date")%>%
   left_join(sp500_monthly, by = "Date")%>%
@@ -942,8 +975,9 @@ ts_krw <- ts(df3$krw,
 ts_log_krw <- ts(log(df3$krw), 
                   star=decimal_date(as.Date("2000-12-01",format = "%Y-%m-%d")),frequency = 12)
 
-
 ```
+
+
 
 ### manual search utility function
 
@@ -997,6 +1031,62 @@ SARIMA.c <- function(p_range, d_range, q_range, P_range, D_range, Q_range, data)
   
 ```
 
+```{r}
+#| echo: true
+#| code-fold: true
+
+# arima 
+ARIMA.c <- function(p_range, d_range, q_range, data,
+                    include_drift = TRUE,
+                    quiet = TRUE) {
+
+  results <- list()
+
+  for (p in p_range) {
+    for (d in d_range) {
+      for (q in q_range) {
+
+        fit <- tryCatch(
+          {
+            forecast::Arima(
+              y = data,
+              order = c(p, d, q),
+              include.drift = include_drift
+            )
+          },
+          error = function(e) {
+            if (!quiet) message(sprintf("Model failed for p=%d d=%d q=%d: %s", p, d, q, e$message))
+            NULL
+          }
+        )
+
+        if (!is.null(fit)) {
+          results[[length(results) + 1L]] <- data.frame(
+            p = p, d = d, q = q,
+            AIC  = fit$aic,
+            BIC  = fit$bic,
+            AICc = fit$aicc,
+            stringsAsFactors = FALSE
+          )
+        }
+      }
+    }
+  }
+
+  if (length(results) == 0L) {
+    return(data.frame(
+      p = integer(), d = integer(), q = integer(),
+      AIC = double(), BIC = double(), AICc = double()
+    ))
+  }
+
+  out <- do.call(rbind, results)
+  rownames(out) <- NULL
+  out[order(out$AIC), ]
+}
+
+
+```
 
 ### log transformation 
 
@@ -1007,8 +1097,6 @@ In EDA and univariate section, taking log for S&P500 index and USD index was bet
 #| code-fold: true
 
 
-diff_krw <- diff(ts_krw)
-diff_log_krw <- diff(ts_log_krw)
 
 p1 <- ggplot() +
   geom_line(aes(x = time(diff_krw), y = diff_krw), color = "blue") +
@@ -1024,10 +1112,17 @@ p2 <- ggplot() +
        y = "KRW to USD") +
   theme_minimal()
 
+
+
+
 p1 / p2
+
+
 ```
 
 from the plot, log transformation don't give dramatical change, so for this model, original value for KRW/USD spot exchange rate will be used. 
+
+
 
 :::panel-tabset
 
@@ -1204,12 +1299,10 @@ for (i in 1:(n-k)) {
                 include.drift = FALSE, lambda = 0, method = "ML")
   fcast2 <- forecast(fit2, h = h)
   
-  # Compute RMSE (Root Mean Squared Error)
   rmse1[i, 1:length(xtest)] <- sqrt(mean((fcast1$mean - xtest)^2, na.rm = TRUE))
   rmse2[i, 1:length(xtest)] <- sqrt(mean((fcast2$mean - xtest)^2, na.rm = TRUE))
 }
 
-# Compute Mean RMSE Across Forecast Horizons
 rmse1_avg <- colMeans(rmse1, na.rm = TRUE)
 rmse2_avg <- colMeans(rmse2, na.rm = TRUE)
 
@@ -1348,7 +1441,361 @@ plot_ly() |>
 
 
 
+# SARIMAX model : South korea exports(vs USA) ~ VIX + US manufacturing Index + KRW/USD spot rate
+
+
+### data cleaning 
+
+```{r,message = F,warning = F }
+#| echo: true
+#| code-fold: true
+
+
+usmi<- read_csv("../data/usmi.csv")
+usmi<- usmi%>% 
+  rename(Date = observation_date, usm = INDPRO)%>%
+  mutate(Date = ymd(Date)) %>%
+  arrange(Date)
+
+vix_monthly_m2 <- vix %>%
+  mutate(year_month = floor_date(Date, "month")) %>%
+  group_by(year_month) %>%
+  slice_head(n = 1) %>%
+  ungroup() %>%
+  mutate(Date = floor_date(year_month, "month")) %>%  
+  dplyr::select(Date, vix)
+
+kor_monthly_m2 <- kr %>%
+  mutate(year_month = floor_date(Date, "month")) %>%
+  group_by(year_month) %>%
+  slice_head(n = 1) %>%
+  ungroup() %>%
+  mutate(Date = floor_date(year_month, "month")) %>%  
+  dplyr::select(Date, krw)
+
+trade_exports<- trade %>%
+  dplyr::select(Date, export_USD)%>%
+  rename(exports = export_USD)
+
+df4<- trade_exports%>%
+  left_join(usmi,by = "Date")%>%
+  left_join(vix_monthly_m2,by = "Date")%>%
+  left_join(kor_monthly_m2, by = "Date")
+
+start_year_df4  <- year(min(df4$Date))
+start_month_df4 <- month(min(df4$Date))
+```
+
+:::panel-tabset
+
+### time series plot
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+p9 <- plot_ly(df4, x = ~Date, y = ~exports, type = "scatter", mode = "lines",
+              name = "South korea exports(US)") %>%
+layout(yaxis = list(title = "South korea exports(US)", titlefont = list(size = 14), tickfont = list(size = 12)))
+
+p10 <- plot_ly(df4, x = ~Date, y = ~usm, type = "scatter", mode = "lines",
+              name = "US manufacturing Index") %>%
+layout(yaxis = list(title = "US manufacturing Index", titlefont = list(size = 14), tickfont = list(size = 12)))
+
+p11 <- plot_ly(df4, x = ~Date, y = ~vix, type = "scatter", mode = "lines",
+              name = "VIX index") %>%
+layout(yaxis = list(title = "VIX index", titlefont = list(size = 14), tickfont = list(size = 12)))
+
+p12 <- plot_ly(df4, x = ~Date, y = ~krw, type = 'scatter', mode = 'lines',
+              name = "KRW/USD spot rate") %>%
+  layout(yaxis = list(title = "KRW/USD spot rate", titlefont = list(size = 14), tickfont = list(size = 12)))
+
+
+subplot(p9,p12, nrows = 2, shareX = TRUE, titleY = TRUE) %>%
+  layout(xaxis = list(title = "Date"))
+
+subplot(p10,p11, nrows = 2, shareX = TRUE, titleY = TRUE) %>%
+  layout(xaxis = list(title = "Date"))
+
+```
+
+
+
+### auto.arima
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+df4.ts<- ts(df4[,c( "vix","usm","krw","exports")],start = c(1993,1),frequency = 12)
+y2<- df4.ts[,"exports"]
+xreg2 <- df4.ts[, !(colnames(df4.ts) %in% "exports")]
+fit_auto2<- auto.arima(y2,xreg = xreg2)
+summary(fit_auto2)
+checkresiduals(fit_auto2)
+```
+
+### manual search
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+m2<- lm(exports~ usm+vix+krw, data = df4)
+summary(m2)
+
+```
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+library(patchwork)
+res.fit2<- ts(residuals(m2),start = c(1993,1),frequency = 12)
+ 
+acf2<- ggAcf(res.fit2) +
+  ggtitle("Autocorrelation Function (ACF) of Residuals")
+pacf2<- ggPacf(res.fit2) +
+  ggtitle("Autocorrelation Function (ACF) of Residuals")
+
+acf2 / pacf2
+
+diff2<- diff(res.fit2)
+seasonal_diff2<- diff(diff2,lag = 12)
+
+diff_p3 <- ggAcf(seasonal_diff2) +
+  ggtitle("ACF of Seasonally Differenced Residuals") +
+  theme_minimal()
+
+diff_p4 <- ggPacf(seasonal_diff2) +
+  ggtitle("PACF of Seasonally Differenced Residuals") +
+  theme_minimal()
+
+diff_p3 /diff_p4
+```
+
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+
+output2 <- SARIMA.c(
+  p_range = 0:3, q_range = 0:3, 
+  d_range = 1, D_range = 1, 
+  P_range = 0:1, Q_range = 0:1, 
+  data = res.fit2
+)
+
+
+minaic <- output2[which.min(output2$AIC), ]
+minbic <- output2[which.min(output2$BIC), ]
+
+print(minaic)
+print(minbic)
+model_output_3 <- capture.output(sarima(res.fit2, 3,1,3,1,1,1,12))
+model_output_4 <- capture.output(sarima(res.fit2, 0,1,1,0,1,1,12))
+model_output_5 <- capture.output(sarima(res.fit2, 0,1,1,0,0,2,12))
+```
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+
+extract_model_diagnostics <- function(model_output) {
+  start_line <- grep("Coefficients", model_output)  # Find where coefficients start
+  end_line <- length(model_output)  # Capture till the last line
+  if (length(start_line) > 0) {
+    cat(model_output[start_line:end_line], sep = "\n")  # Print coefficient section
+  } else {
+    cat("No coefficient details found.\n")  # Handle cases where output format changes
+  }
+}
+
+extract_model_diagnostics(model_output_3)
+extract_model_diagnostics(model_output_4)
+extract_model_diagnostics(model_output_5)
+```
+
+### cross-validation
+
+```{r,message = F, warning = F}
+
+#| echo: true
+#| code-fold: true
+
+library(knitr)
+library(kableExtra)
+
+n <- length(res.fit2)  
+
+# Calculate k as 1/3rd of the data, rounded down to the nearest multiple of 12
+k <- floor(n / 3 / 12) * 12 
+
+h <- 12  # Forecast horizon (predicting 12 months ahead)
+
+# Initialize matrices for RMSE
+rmse1 <- matrix(NA, nrow = (n-k), ncol = h)  # RMSE for Model 1
+rmse2 <- matrix(NA, nrow = (n-k), ncol = h)  # RMSE for Model 2
+rmse3 <- matrix(NA, nrow = (n-k), ncol = h)  # RMSE for Model 3
+# Define rolling start time
+st <- tsp(res.fit2)[1] + (k - 2) / 12  
+
+# Walk-Forward Validation Loop
+for (i in 1:(n - k)) {
+  xtrain <- window(res.fit2, end = st + i / 12)
+  xtest  <- window(res.fit2, start = st + (i + 1) / 12, end = st + (i + h) / 12)
+
+  tryCatch({
+    xtrain <- jitter(xtrain, factor = 1e-6)
+
+    fit1 <- Arima(xtrain, order = c(3,1,3), seasonal = list(order = c(1,1,1), period = 12),
+                  method = "CSS-ML", include.drift = FALSE)
+    fcast1 <- forecast(fit1, h = h)
+
+    fit2 <- Arima(xtrain, order = c(0,1,1), seasonal = list(order = c(0,1,1), period = 12),
+                  method = "CSS-ML", include.drift = FALSE)
+    fcast2 <- forecast(fit2, h = h)
+
+    fit3 <- Arima(xtrain, order = c(0,1,1), seasonal = list(order = c(0,0,2), period = 12),
+                  method = "CSS-ML", include.drift = FALSE)
+    fcast3 <- forecast(fit3, h = h)
+
+    rmse1[i, 1:length(xtest)] <- sqrt(mean((fcast1$mean - xtest)^2, na.rm = TRUE))
+    rmse2[i, 1:length(xtest)] <- sqrt(mean((fcast2$mean - xtest)^2, na.rm = TRUE))
+    rmse3[i, 1:length(xtest)] <- sqrt(mean((fcast3$mean - xtest)^2, na.rm = TRUE))
+  },
+  error = function(e) {
+    message(sprintf(" Iteration %d failed: %s", i, e$message))
+  })
+}
+
+rmse1_avg <- colMeans(rmse1, na.rm = TRUE)
+rmse2_avg <- colMeans(rmse2, na.rm = TRUE)
+rmse3_avg <- colMeans(rmse3, na.rm = TRUE)
+
+# Create a DataFrame for Plotting
+rmse_table1 <- data.frame(
+  Horizon1 = 1:h,
+  RMSE_Model1 = rmse1_avg,
+  RMSE_Model2 = rmse2_avg,
+  RMSE_Model3 = rmse3_avg
+)
+
+# Display RMSE Table
+kable(rmse_table1, format = "html", digits = 4, caption = "RMSE for 12-Step Forecasts") %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+
+```
+
+
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+
+ggplot(rmse_table1, aes(x = Horizon1)) +
+  geom_line(aes(y = RMSE_Model1, color = "SARIMA(3,1,3)(1,1,1)[12]"), size = 1) +
+  geom_line(aes(y = RMSE_Model2, color = "SARIMA(0,1,1)(0,1,1)[12]"), size = 1) +
+  geom_line(aes(y = RMSE_Model3, color = "SARIMA(0,1,1)(0,0,2)[12]"), size = 1) +
+  labs(title = "RMSE Comparison for 12-Step Forecasts",
+       x = "Forecast Horizon (Months Ahead)",
+       y = "Root Mean Squared Error (RMSE)") +
+  scale_color_manual(name = "Models", values = c("orange","red", "blue")) +
+  theme_minimal()
+```
+
+### model fitting
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+
+final_fit2<- Arima(y2,order = c(3,1,3),seasonal = list(order = c(1,1,1),period = 12),xreg = xreg2)
+summary(final_fit2)
+```
+
+### forecast
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+usm_fit <- auto.arima(xreg2[, "usm"])
+fusm <- forecast(usm_fit, h = 48) 
+
+vix_fit <- auto.arima(xreg2[, "vix"])
+fvix <- forecast(vix_fit, h = 48)
+
+krw_fit <- auto.arima(xreg2[, "krw"])
+fkrw <- forecast(krw_fit, h = 48)
+
+
+fxreg2 <- cbind(vix = fvix$mean,
+                usm = fusm$mean,
+                krw = fkrw$mean)
+
+
+```
+
+
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+library(plotly)
+
+fcast2 <- forecast(final_fit2, xreg = fxreg2, h = 48)
+
+orig_df <- data.frame(
+  Date   = as.Date(as.yearmon(time(y2))),
+  Actual = as.numeric(y2)
+)
+
+fcast_df2 <- data.frame(
+  Date     = as.Date(as.yearmon(time(fcast2$mean))),
+  Forecast = as.numeric(fcast2$mean),
+  Lower80  = as.numeric(fcast2$lower[,1]),
+  Upper80  = as.numeric(fcast2$upper[,1]),
+  Lower95  = as.numeric(fcast2$lower[,2]),
+  Upper95  = as.numeric(fcast2$upper[,2])
+)
+
+
+plot_ly() |>
+  add_lines(data = orig_df,
+            x = ~Date, y = ~Actual,
+            name = "Actual") |>
+  add_lines(data = fcast_df2,
+            x = ~Date, y = ~Forecast,
+            name = "Forecast") |>
+  add_ribbons(data = fcast_df2,
+              x = ~Date,
+              ymin = ~Lower95,
+              ymax = ~Upper95,
+              name = "95% CI",
+              opacity = 0.2,
+              showlegend = FALSE) |>
+  add_ribbons(data = fcast_df2,
+              x = ~Date,
+              ymin = ~Lower80,
+              ymax = ~Upper80,
+              name = "80% CI",
+              opacity = 0.3,
+              showlegend = FALSE) |>
+  layout(
+    title = "Forecast of South korea export to US for next 48 month",
+    xaxis = list(title = "Year"),
+    yaxis = list(title = "thousand USD")
+  )
+```
 
 
 
 
+:::
