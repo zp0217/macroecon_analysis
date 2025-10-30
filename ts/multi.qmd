@@ -789,9 +789,6 @@ fig3
 ```
 
 
-
-
-
 :::
 
 
@@ -1506,6 +1503,10 @@ summary(fit_auto1)
 checkresiduals(fit_auto1)
 ```
 
+
+The auto.arima model exhibits noticeable autocorrelation, with a significant spike in the ACF before lag 12, suggesting the presence of remaining short-term dependence that the model has not fully captured. Additionally, the residual series displays visible fluctuations, including a pronounced period of volatility between 2008 and 2010, indicating potential structural changes or outliers during that time. These patterns imply that the model may be under-differenced or missing key components to adequately capture the temporal dynamics and seasonal structure of the data.
+
+
 ### manual search
 
 ```{r}
@@ -1528,7 +1529,7 @@ res.fit1<- ts(residuals(m1),start = c(2000,12),frequency = 12)
 acf1<- ggAcf(res.fit1) +
   ggtitle("Autocorrelation Function (ACF) of Residuals")
 pacf1<- ggPacf(res.fit1) +
-  ggtitle("Autocorrelation Function (ACF) of Residuals")
+  ggtitle("Partial Autocorrelation Function (PACF) of Residuals")
 
 acf1 / pacf1
 
@@ -1587,6 +1588,9 @@ extract_model_diagnostics <- function(model_output) {
 extract_model_diagnostics(model_output_1)
 extract_model_diagnostics(model_output_2)
 ```
+
+The ARIMA(0,1,2)(1,1,1)[12](manual search) model produces residuals that behave much closer to white noise. The residual plot shows less obvious patterns or persistent fluctuations over time compared with the auto.arima model , indicating that both regular and seasonal differencing have successfully stabilized the series. The PACF of the residuals shows no significant spikes within the confidence bounds, suggesting that autocorrelation has been effectively removed. The Q–Q plot of standardized residuals aligns closely with the theoretical normal line, with only minor deviations at the tails. Furthermore, the Ljung–Box test p-values remain above the significance level across most lags, confirming the adequacy of the model fit. Overall, this model captures both the short-term and seasonal dynamics of the data well and provides a significant improvement over the auto.arima model.
+
 
 ### cross-validation
 
@@ -1661,6 +1665,9 @@ ggplot(rmse_table1, aes(x = Horizon1)) +
   theme_minimal()
 ```
 
+
+From the plots, the SARIMA(0,1,2)(1,1,1)[12] model demonstrates strong overall performance, capturing the main patterns and seasonal dynamics effectively across most of the time series. In contrast, the SARIMA(0,0,5)(1,0,1)[12] model performs slightly better in predicting values at the very beginning and end of the series, suggesting improved short-term and long-horizon accuracy. However, considering consistency and overall fit throughout the data, the SARIMA(0,1,2)(1,1,1)[12] model provides a more balanced and reliable performance. Therefore, this model is selected as the preferred choice.
+
 ### model fitting
 
 ```{r,message = F, warning = F}
@@ -1680,6 +1687,35 @@ $$
 +883.1751\,\log(\text{usd\_index})_t
 -219.0293\,\log(\text{sp500\_close})_t
 +\,(1-0.1410\,\B-0.1266\,\B^2)\,(1-1.0000\,\B^{12})\,\varepsilon_t.
+
+$$
+$$
+
+\begin{aligned}
+(1 + 0.0513\,B^{12})(1 - B)(1 - B^{12})\,y_t
+\\[4pt]
+=\;
+-\,17.3951\,\text{US\_KR\_3Y}_t
+\;-\; 9.6550\,\text{US\_KR\_10Y}_t
+\;+\; 883.1751\,\log(\text{usd\_index})_t
+\;-\; 219.0293\,\log(\text{sp500\_close})_t
+\\[6pt]
+\quad+\;
+(1 - 0.1410\,B - 0.1266\,B^{2})(1 - 1.0000\,B^{12})\,\varepsilon_t.
+\end{aligned}
+
+
+$$
+
+$$
+\begin{alignedat}{1}
+&(1 + 0.0513\,B^{12})(1 - B)(1 - B^{12})\,y_t \\[4pt]
+&=\,-17.3951\,\text{US_KR_3Y}_t
+- 9.6550\,\text{US_KR_10Y}_t
++ 883.1751\,\log(\text{usd_index})_t
+- 219.0293\,\log(\text{sp500_close})_t \\[6pt]
+&\quad+\,(1 - 0.1410\,B - 0.1266\,B^{2})(1 - 1.0000\,B^{12})\,\varepsilon_t.
+\end{alignedat}
 $$
 
 
@@ -1862,6 +1898,11 @@ summary(fit_auto2)
 checkresiduals(fit_auto2)
 ```
 
+
+The ARIMA(0,1,1)(0,0,2)[12] model from auto.arima() yields residuals that fluctuate randomly around zero, though variability increases in recent years, indicating the fit is not perfect. The residual ACF shows only mild autocorrelation, with most lags within the 95% bounds, but a faint seasonal signal remains near lag 12. The residual histogram is approximately normal, with slight skewness driven by a few large observations.
+
+
+
 ### manual search
 
 ```{r}
@@ -1883,7 +1924,7 @@ res.fit2<- ts(residuals(m2),start = c(1993,1),frequency = 12)
 acf2<- ggAcf(res.fit2) +
   ggtitle("Autocorrelation Function (ACF) of Residuals")
 pacf2<- ggPacf(res.fit2) +
-  ggtitle("Autocorrelation Function (ACF) of Residuals")
+  ggtitle("Partial Autocorrelation Function (PACF) of Residuals")
 
 acf2 / pacf2
 
@@ -1944,6 +1985,10 @@ extract_model_diagnostics(model_output_3)
 extract_model_diagnostics(model_output_4)
 extract_model_diagnostics(model_output_5)
 ```
+
+
+All three models display similar residual patterns, characterized by random fluctuations around zero with a few noticeable outlier spikes. The ACF plots of the residuals also show comparable behavior across models; however, the ARIMA(3,1,3)(1,1,1)[12] model performs slightly better, as its autocorrelations remain within the significance bounds across most lags. The normal Q–Q plots indicate that all models exhibit similar residual distributions, with deviations at the tails suggesting the presence of non-normality often observed in time series data. Although the Ljung–Box test results indicate that none of the models fully satisfy the white noise assumption—since most p-values fall below the significance threshold—the ARIMA(0,1,1)(0,1,1)[12] model appears to offer a marginally better fit compared to the others.
+
 
 ### cross-validation
 
@@ -2034,6 +2079,8 @@ ggplot(rmse_table1, aes(x = Horizon1)) +
   theme_minimal()
 ```
 
+From the plot, SARIMA(3,1,3)(1,1,1)[12] performs better than other models, so SARIMA(3,1,3)(1,1,1)[12] model is best model. 
+
 ### model fitting
 
 ```{r,message = F, warning = F}
@@ -2047,32 +2094,20 @@ summary(final_fit2)
 
 
 $$
-\bigl(1+1.216\,B+1.0579\,B^{2}+0.0649\,B^{3}\bigr)\bigl(1+0.0829\,B^{12}\bigr)\,w_t
-=
--6911.305\,\mathrm{vix}_t
-+97511.41\,\mathrm{usm}_t
--220.2439\,\mathrm{krw}_t
-+
-\bigl(1+0.6024\,B+0.3140\,B^{2}-0.5152\,B^{3}\bigr)\bigl(1-0.8007\,B^{12}\bigr)\,\varepsilon_t,
-\qquad \varepsilon_t\sim\mathcal{N}(0,\sigma^2).
-$$
-$$
 \begin{aligned}
-\bigl(1 \;+\; 1.216\, B \;+\; 1.0579\, B^{2} \;+\; 0.0649\, B^{3}\bigr)\,
-\bigl(1 \;+\; 0.0829\, B^{12}\bigr)\, w_t
-\;&=\;
--\,6911.305\, \mathrm{vix}_t
-\;+\; 97\,511.41\, \mathrm{usm}_t
-\;-\; 220.2439\, \mathrm{krw}_t \\[4pt]
-&\quad+\;
-\bigl(1 \;+\; 0.6024\, B \;+\; 0.3140\, B^{2} \;-\; 0.5152\, B^{3}
-\bigr)\,
-
-\bigl(1 \;-\; 0.8007\, B^{12}\bigr)\, \varepsilon_t, \\[4pt]
-\varepsilon_t \;&\sim\; \mathcal{N}(0, \sigma^2).
+\bigl(1 + 1.216\,B + 1.0579\,B^{2} + 0.0649\,B^{3}\bigr)
+\bigl(1 + 0.0829\,B^{12}\bigr) w_t
+\\[4pt]
+=\;
+-\,6911.305\,\mathrm{vix}_t
+\;+\; 97{,}511.41\,\mathrm{usm}_t
+\;-\; 220.2439\,\mathrm{krw}_t \\[6pt]
+\quad+\;
+\bigl(1 + 0.6024\,B + 0.3140\,B^{2} - 0.5152\,B^{3}\bigr)
+\bigl(1 - 0.8007\,B^{12}\bigr)\varepsilon_t, \\[6pt]
+\varepsilon_t &\sim \mathcal{N}(0, \sigma^2).
 \end{aligned}
 $$
-
 
 
 ### forecast
