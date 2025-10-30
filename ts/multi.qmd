@@ -2204,24 +2204,18 @@ The forecast demonstrates a strong fit, effectively capturing the pattern of his
 # Conclusion 
 
 
-Overall, model fitting process was satisfied, with descent output for forecasting. However since all the models are not in "perfect", it needs to be improved for better anaysis. Also in economic and finance sector, there are numerous factors that needs to be considered for analyzing economic situation and its prediction, so it have limitations. 
-However, by conducting multivariate anaylsis, there were numerous meaningful findings. Generally, all the models didn't produced "opposite" result compare to how usually economic variable acts to others. So, interpretation for forecasting was meaningful to explain. 
+The model-fitting process was satisfactory and produced reasonable forecasts across the four specifications. While the results are encouraging, no model is perfect, and additional refinement would further strengthen the analysis. Because macroeconomic and financial outcomes are shaped by many interacting forces, any empirical model will have limitations. Important drivers can be difficult to observe or may change over time, so the forecasts should be interpreted with appropriate caution.
 
+Even so, the multivariate analysis yielded meaningful insights that align with established economic relationships. None of the models produced results that ran counter to typical behavior. Instead, the estimated effects were broadly consistent with how key variables usually interact—through risk sentiment, interest-rate differentials, exchange-rate channels, and demand conditions—making the forecast interpretations economically credible.
 
+For the VAR linking U.S. and Korean equities (S&P 500, VIX, U.S. yield spread, and KOSPI), the forecast plot indicates firmer U.S. equity conditions and wider yield spreads alongside a softer KOSPI. This is consistent with the discount-rate and risk-transmission channels: tighter U.S. financial conditions and stronger dollar dynamics raise discount rates, elevate global risk premia, and tend to weigh on KRW-sensitive Korean equities.
 
+For the VAR examining rate pass-through to Seoul housing (U.S. 10Y, Korea 10Y, and Seoul HPI), the forecast shows gradually easing long-term yields and a firmer housing index. The opposite co-movement is exactly what the affordability channel predicts: declines in global and domestic long rates filter into borrowing costs with lags, supporting housing demand and prices over time.
+For the SARIMAX model of USD/KRW (with rate differentials, U.S. equities/risk, and a broad dollar factor as exogenous drivers), the forecast suggests a mild KRW appreciation path with limited volatility. This reflects the background mechanism in which narrower rate differentials, improved risk sentiment, and a cooler broad dollar typically favor KRW strength, while the ARIMA component absorbs serial dependence in the exchange rate.
 
+For the SARIMAX model of Korea’s exports to the United States (driven by U.S. demand, the exchange rate, and risk conditions), the forecast points to an upward trend tempered by month-to-month noise. Stronger U.S. manufacturing activity pulls Korean exports higher, while exchange-rate valuation and risk/financing conditions modulate near-term fluctuations—patterns commonly observed for dollar-invoicing exporters.
 
-
-
-
-
-
-
-
-
-
-
-
+Looking ahead, the models can be enhanced with deeper diagnostics, and the addition of relevant external variables such as global demand proxies beyond the U.S., commodity prices, and credit conditions. Taken together, the four models provide a coherent basis for narrative forecasting while highlighting clear avenues for continued improvement.
 
 
 
