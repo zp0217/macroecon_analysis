@@ -246,6 +246,9 @@ vix_monthly <- vix %>%
 
 3. equity: s&p500, vix, us_yield_spread,KOSPI index
 
+4. US treasury yield curve 10 Years, South Korea government bond rate 10Years, Seoul housing index
+
+
 # VAR model
 
 ### equity: s&p500, us_yield_spread,KOSPI index
@@ -493,14 +496,13 @@ library(vars)
 library(forecast)
 library(plotly)
 
-# Fit VAR(5) on full data
+
 var5 <- VAR(ts_obj, p = 5, type = "both")
 
-# Forecast 252 days ahead
+
 h <- 504
 fcast <- forecast(var5, h = h)
 
-# us_spread plot (not log-transformed, keep as is)
 fig1 <- plot_ly() %>%
   add_lines(x = as.numeric(time(tail(ts_obj[, "us_spread"], 2500))), 
             y = as.numeric(tail(ts_obj[, "us_spread"], 2500)), 
@@ -523,7 +525,6 @@ fig1 <- plot_ly() %>%
          yaxis = list(title = "us_spread"),
          hovermode = "x unified")
 
-# KOSPI plot (transform back from log to original scale)
 fig2 <- plot_ly() %>%
   add_lines(x = as.numeric(time(tail(ts_obj[, "log_kospi"], 2500))), 
             y = exp(as.numeric(tail(ts_obj[, "log_kospi"], 2500))), 
@@ -546,7 +547,6 @@ fig2 <- plot_ly() %>%
          yaxis = list(title = "KOSPI"),
          hovermode = "x unified")
 
-# S&P500 plot (transform back from log to original scale)
 fig3 <- plot_ly() %>%
   add_lines(x = as.numeric(time(tail(ts_obj[, "log_sp500"], 2500))), 
             y = exp(as.numeric(tail(ts_obj[, "log_sp500"], 2500))), 
@@ -569,7 +569,6 @@ fig3 <- plot_ly() %>%
          yaxis = list(title = "S&P500"),
          hovermode = "x unified")
 
-# Display plots
 fig1
 fig2
 fig3
@@ -579,7 +578,7 @@ fig3
 
 
 
-# US treasury rate 10 Years, South Korea government bond rate 10Years, seoul housing index
+# US treasury yield curve 10 Years, South Korea government bond rate 10Years, seoul housing index
 
 ### data cleaning process
 
@@ -855,7 +854,7 @@ fig1 <- plot_ly() %>%
               ymax = as.numeric(fcast$forecast$housing$upper[,1]),
               name = "80% CI", 
               line = list(color = "transparent")) %>%
-  layout(title = "VAR(1) Forecast for housing",
+  layout(title = "VAR(2) Forecast for housing",
          xaxis = list(title = "Year"),
          yaxis = list(title = "housing"),
          hovermode = "x unified")
@@ -877,7 +876,7 @@ fig2 <- plot_ly() %>%
               ymax = as.numeric(fcast$forecast$KR_10Y$upper[,1]),
               name = "80% CI",  
               line = list(color = "transparent")) %>%
-  layout(title = "VAR(1) Forecast for KR_10Y",
+  layout(title = "VAR(2) Forecast for KR_10Y",
          xaxis = list(title = "Year"),
          yaxis = list(title = "KR_10Y"),
          hovermode = "x unified")
@@ -899,7 +898,7 @@ fig3 <- plot_ly() %>%
               ymax = as.numeric(fcast$forecast$US_10Y$upper[,1]),
               name = "80% CI", 
               line = list(color = "transparent")) %>%
-  layout(title = "VAR(1) Forecast for US_10Y",
+  layout(title = "VAR(2) Forecast for US_10Y",
          xaxis = list(title = "Year"),
          yaxis = list(title = "US_10Y"),
          hovermode = "x unified")
