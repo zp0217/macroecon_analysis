@@ -21,7 +21,7 @@ These datasets contain yield curve information for both the United States and Ko
 
 # Data source 2: FX spot rate data 
 
-![](/image/fred_rate.png)
+![](/image/kor.png)
 
 This dataset records the daily exchange rate of the Korean Won (KRW) against the U.S. Dollar (USD). The FX rate is central to understanding the U.S. dollar’s influence on Korea’s financial markets. It allows the detection of turning points, trend shifts, and day-to-day volatility, helping to evaluate how U.S. rate shocks and dollar movements transmit into the Korean currency market.
 

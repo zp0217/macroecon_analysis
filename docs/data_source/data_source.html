@@ -253,7 +253,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="data-source-2-fx-spot-rate-data" class="level1">
 <h1>Data source 2: FX spot rate data</h1>
-<p><img src="../image/fred_rate.png" class="img-fluid"></p>
+<p><img src="../image/kor.png" class="img-fluid"></p>
 <p>This dataset records the daily exchange rate of the Korean Won (KRW) against the U.S. Dollar (USD). The FX rate is central to understanding the U.S. dollar’s influence on Korea’s financial markets. It allows the detection of turning points, trend shifts, and day-to-day volatility, helping to evaluate how U.S. rate shocks and dollar movements transmit into the Korean currency market.</p>
 <p><a href="https://fred.stlouisfed.org/series/DEXKOUS">Korean won(KRW) data</a></p>
 </section>
@@ -264,7 +264,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p><a href="https://finance.yahoo.com/">yahoo finance</a></p>
 <section id="kospi-index-yfinance-code" class="level3">
 <h3 class="anchored" data-anchor-id="kospi-index-yfinance-code">KOSPI index yfinance code</h3>
-<div id="df60b53c" class="cell" data-execution_count="1">
+<div id="f90960d0" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> yfinance <span class="im">as</span> yf</span>
@@ -278,7 +278,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="usd-index-yfinance-code" class="level3">
 <h3 class="anchored" data-anchor-id="usd-index-yfinance-code">USD index yfinance code</h3>
-<div id="9131966f" class="cell" data-execution_count="2">
+<div id="d811af5d" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> yfinance <span class="im">as</span> yf</span>
@@ -293,7 +293,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="sp500-index-yfinance-code" class="level3">
 <h3 class="anchored" data-anchor-id="sp500-index-yfinance-code">S&amp;P500 index yfinance code</h3>
-<div id="6a610d40" class="cell" data-execution_count="3">
+<div id="898f0833" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Code</summary>
 <div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> yfinance <span class="im">as</span> yf</span>
@@ -436,7 +436,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
   }
     var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
     var mailtoRegex = new RegExp(/^mailto:/);
-      var filterRegex = new RegExp("https:\/\/zp0217\.quarto\.pub\/assets");
+      var filterRegex = new RegExp('/' + window.location.host + '/');
     var isInternal = (href) => {
         return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
     }

@@ -12,11 +12,27 @@ Currently there are four models, but more models will be added
 
 :::
 
+
+This project examines how U.S. economic and financial conditions transmit to South Korea’s economy across markets and the real sector. Because there are many candidate indicators—spanning growth, risk sentiment, interest rates, exchange rates, and trade—careful variable selection is essential before modeling.
+Goal of this section is to build multivariate models to answer four questions: 
+
+- (i) how U.S. and Korean equities interact
+- (ii) how the Seoul metropolitan housing market responds to Long end of the term structure
+- (iii) which exogenous factors move the won–dollar exchange rate
+- (iv) which factors drive Korea’s exports to the U.S.
+
+
 # Literature reviews
 
+Before turning to the analysis, a targeted literature review aligns the four questions with the overarching research objective and justifies each modeling choice. 
 
+In U.S.–South Korea equity linkages, Kim (2010)[@Kim2010] documents significant spillovers in higher moments (mean, volatility, skewness, kurtosis) between U.S. and Korean equity markets using high-frequency data, indicating that U.S. shocks propagate to Korean returns; more recently, a study in Business and Economic Research shows that changes in the VIX are negatively associated with KOSPI returns, reinforcing a U.S. risk-to-Korea transmission channel. Together, these results support a VAR that treats U.S. equity performance and global risk as upstream drivers of Korean equities, with a discount-rate control: include Δlog(S&P 500), VIX, Δlog(KOSPI), and a U.S. yield spread (10Y–3M or 10Y–2Y) to capture the rate channel affecting both markets.
 
+For the Seoul housing market, Lee (2022)[@Lee2022] uses a Korean time-varying parameter VAR (1991–2022) and finds that the impact of interest-rate shocks on housing prices strengthened markedly after the global financial crisis, implying state-dependent pass-through from rates to valuations. Complementary evidence from Min (2024)[@Min2024] likewise highlights time-varying impulse responses of Seoul housing to interest rates. These findings motivate a compact VAR comprising the U.S. 10-year Treasury yield, the Korea 10-year government bond yield, and the log of the Seoul housing price index, ordered to trace global-to-local rate pass-through and then housing, while leaving room to test time variation via rolling windows or TVP extensions.
 
+For the KRW/USD exchange rate, Yoon (2019)[@Yoon2019] argues that U.S. monetary conditions dominate KRW/USD dynamics given the dollar-centric trading of Korea’s FX market, while Masujima (2018, RIETI)[@Masujima2018] adds that exchange-rate drivers rotate across carry (rate differentials), the global dollar factor, and risk sentiment (VIX). These insights support a SARIMAX for Δlog(USD/KRW) with exogenous terms for the U.S.–Korea interest-rate spread (3Y or 10Y), Δlog(Dollar Index, DXY) to capture the global dollar cycle, and a risk proxy (VIX or Δlog(S&P 500))—a structure also consistent with funding-risk episodes highlighted for Korea by the IMF.
+
+Finally, on South Korea’s exports to the United States, a Bank of Korea working paper on dominant currency pricing (Son et al., 2023)[@Son2023] shows that Korean exports are heavily invoiced in U.S. dollars due to strategic complementarities and real hedging, implying that the dollar level often matters for short-run trade revenues. Pairing this with a U.S. demand proxy captures the real-side pull. Accordingly, model Δlog(Korea’s exports to the United States) with U.S. manufacturing demand (ISM Manufacturing PMI or U.S. industrial production), an exchange-rate term (Δlog(USD/KRW) and/or DXY for invoicing effects), and a risk/financing control (VIX), with seasonal terms for monthly data.
 
 
 ```{r,message = F, warning = F}
@@ -233,6 +249,96 @@ vix_monthly <- vix %>%
 ```
 
 
+
+### Variables
+
+
+- FX spot rate (KRW per USD)
+
+The bilateral exchange rate quoted as won per dollar; it moves up when the USD strengthens or U.S. rates/risk rise and down when KRW demand or relative KR rates strengthen; up-moves mean a weaker KRW and costlier imports/funding while down-moves mean stronger KRW and easier external conditions; it matters because it transmits U.S. financial shifts into Korea’s prices, trade margins, and capital flows.
+
+
+- U.S.–Korea 3-year yield spread
+
+The 3Y U.S. Treasury yield minus the 3Y Korea Treasury Bond yield; it widens when U.S. front-to-belly rates outpace Korea’s and narrows when Korea’s rise or U.S. fall; widening implies policy divergence favoring USD assets and KRW pressure, narrowing implies the opposite; it matters as a near-term compass for FX, flows, and local funding costs.
+
+
+- U.S.–Korea 10-year yield spread
+
+The 10Y U.S. Treasury yield minus the 10Y Korea government bond yield; it moves with relative long-run growth/inflation expectations and term premium; wider spreads signal capital preference for U.S. duration and KRW headwinds, narrower spreads point to relatively easier conditions for Korea; it matters for portfolio allocations, currency valuation, and long-tenor financing.
+
+
+- S&P 500 index
+
+The main U.S. large-capital equity benchmark; it rises with stronger earnings/risk appetite and falls on growth scares or tighter policy; gains signal global risk-on that often supports KOSPI and KRW, while declines flag risk-off and potential outflows from Korea; it matters as the world’s equity bellwether shaping cross-border sentiment.
+
+
+- Dollar Index (DXY)
+
+A broad USD index versus major currencies(JPY,GBP,EUR,CAD,SEK,CHF); it rises with stronger U.S. growth/real yields or heightened risk and falls when global growth broadens or the Fed eases; increases mean tighter global financial conditions and KRW headwinds, decreases mean relief; it matters because it frames Korea’s external competitiveness and dollar funding costs.
+
+
+- South Korea exports to the United States (USD)
+
+The monthly value of Korean goods shipped to the U.S.; it rises with firm U.S. demand/tech upcycles and falls when U.S. activity softens or conditions tighten; increases mean stronger external demand and earnings support for Korea, decreases warn of slower production and profits; it matters as a direct real-economy link between the two countries.
+
+
+- VIX (U.S. equity volatility index)
+
+Implied 30-day volatility from S&P 500 options; it spikes in stress and recedes in calm; higher readings mean risk-off, likely KRW weakness and KOSPI pressure, lower readings mean risk-on support; it matters as a fast, forward-looking gauge of global risk that transmits into Korean assets.
+
+
+- U.S. manufacturing index (ISM Manufacturing PMI)
+
+A diffusion index of U.S. factory activity where 50 marks expansion; it rises with stronger orders/production and falls with slowdowns; higher prints mean firmer U.S. goods demand that often lifts Korean exports, lower prints caution on future orders; it matters as a timely cue for Korea’s trade and industrial cycle.
+
+
+- U.S. yield spread (10Y–3Y curve slope)
+
+The term spread between long and intermediate Treasuries; it steepens on improving growth/term premium and inverts ahead of slowdowns; steepening often signals risk-on and better global momentum, inversion warns of softer demand; it matters because it foreshadows the external environment Korea will face.
+
+
+- KOSPI index
+
+Korea’s main equity benchmark; it rises with global risk appetite, stable/strong KRW, and tech strength, and falls when the dollar tightens conditions or volatility jumps; up-moves mean improving earnings/flows, down-moves mean de-risking and potential outflows; it matters as the market-price readout of Korea’s cyclical exposure to U.S. conditions.
+
+
+- U.S. 10-year Treasury yield
+
+The anchor long-term U.S. risk-free rate; it rises on stronger growth/less-dovish policy or higher term premium and falls on easing or growth fears; higher yields mean tighter global discount rates and KRW/KOSPI headwinds, lower yields mean relief; it matters because it sets the tone for valuation and borrowing costs worldwide.
+
+
+- South Korea 10-year government bond yield
+
+Korea’s benchmark long-term sovereign yield; it rises with domestic inflation/growth or spillovers from higher U.S. yields and falls with easing/disinflation; increases mean tighter local conditions and pricier mortgages/corporate debt, decreases mean looser conditions; it matters for domestic credit, housing, and investment.
+
+
+- Seoul residential property price index
+
+An index of Seoul home prices; it rises with lower mortgage rates/strong incomes and softens when rates rise or credit tightens; up-moves signal wealth effects and consumption support, down-moves flag cooling demand and potential credit restraint; it matters as a slower-moving but powerful transmission channel from global rates to the household economy.
+
+
+### Model explanation
+
+
+- VAR model 1 — Equity co-movements (S&P 500, VIX, U.S. yield spread, KOSPI)
+
+Financial linkages transmit U.S. equity and risk shocks to Korean equities through discount-rate and sentiment channels, with feedback over short horizons. The VAR includes Δlog(S&P 500), VIX, the U.S. yield spread (10Y–3M or 10Y–2Y), and Δlog(KOSPI) as jointly endogenous variables. This set captures the main transmission mechanisms: the yield spread summarizes shifts in discount rates and growth expectations; S&P 500 represents U.S. equity innovations; VIX captures global risk aversion; and KOSPI reflects Korea’s market response. A VAR is justified because these variables interact contemporaneously and with lags; the system enables impulse responses from U.S. rate/equity/risk shocks to KOSPI, and variance decompositions that quantify the U.S. contribution to Korean equity volatility.
+
+- VAR model 2 — Rates pass-through and Seoul housing (US10Y, KR10Y, Seoul HPI)
+
+Housing valuations in Seoul are sensitive to financing conditions, and global rate movements typically filter through to domestic long-term yields before affecting prices with lags. The VAR comprises the U.S. 10-year Treasury yield, the Korea 10-year government bond yield, and the log of the Seoul housing price index. This configuration reflects a plausible ordering of influences: global long rates anchor international term structures, domestic long rates transmit the shock into local borrowing costs and mortgage pricing, and housing prices adjust gradually via affordability and discount-rate channels. A VAR is warranted because long rates and housing prices exhibit mutual dynamics and delayed pass-through; the framework traces how a U.S. term-structure shock propagates to Korean yields and then to housing over time, while allowing tests for lag length, stability, and time-variation.
+
+
+- SARIMAX model 1 — USD/KRW determinants
+
+Exchange-rate behavior in Korea is strongly influenced by cross-border interest-rate differentials, global risk sentiment, and the broad dollar cycle, reflecting the market’s integration with U.S. monetary conditions and dollar funding. The model includes the U.S.–Korea 3-year yield spread, the S&P 500, and the Dollar Index (DXY) as exogenous drivers of USD/KRW. The spread captures carry/UIP forces and relative monetary stance; the S&P 500 serves as a high-frequency proxy for global risk-on/off that tends to strengthen or weaken KRW; and DXY isolates the common dollar factor that moves bilateral rates beyond country-specific fundamentals. SARIMAX fits because USD/KRW exhibits strong serial correlation that ARIMA errors can handle, while the exogenous block reflects reasonably weakly exogenous global forces at the chosen frequency.
+
+- SARIMAX model 2— South Korea exports to the U.S.
+
+International trade research shows that partner-country demand, currency valuation, and global risk conditions jointly shape export dynamics—especially for economies like Korea that are tightly linked to U.S. manufacturing cycles and invoice a large share of exports in dollars. The model uses U.S. manufacturing activity (e.g., ISM Manufacturing PMI or U.S. industrial production), the KRW/USD spot rate, and the VIX as exogenous regressors for South Korea’s exports to the U.S. This selection is justified by clear channels: the U.S. manufacturing index captures external demand pull; the KRW/USD rate captures pricing and competitiveness as well as dollar-denominated revenue effects; and the VIX proxies global financial conditions that influence trade finance, inventory decisions, and risk-sensitive orders. A SARIMAX structure is appropriate because exports are persistent and seasonal, allowing ARIMA terms to absorb autocorrelation and seasonality while treating the U.S. indicators and VIX as upstream drivers at monthly frequency.
+
+
 # Models 
 
 - SARIMAX: 
@@ -249,7 +355,10 @@ vix_monthly <- vix %>%
 4. US treasury yield curve 10 Years, South Korea government bond rate 10Years, Seoul housing index
 
 
+
+
 # VAR model
+
 
 ### equity: s&p500, us_yield_spread,KOSPI index
 
@@ -2066,3 +2175,4 @@ plot_ly() |>
 
 
 
+# Reference
