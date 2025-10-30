@@ -360,7 +360,7 @@ International trade research shows that partner-country demand, currency valuati
 # VAR model
 
 
-### equity: s&p500, us_yield_spread,KOSPI index
+# equity: s&p500, us_yield_spread,KOSPI index
 
 
 ::: panel-tabset
@@ -789,6 +789,10 @@ fig3
 ```
 
 
+From the forecast plot, the VAR model demonstrates a good fit, accurately capturing the patterns of past data and projecting trends for the next two years. The model forecasts an increase in the U.S. 3-year and 10-year spreads as well as the S&P 500 index, while predicting an opposite movement for the KOSPI index.
+
+This result is both interesting and economically reasonable. As the U.S. yield spreads rise, investors are likely to favor U.S. dollar–denominated assets, leading to a stronger dollar. However, this appreciation of the USD tends to weaken the Korean won (KRW), which in turn exerts downward pressure on the KOSPI index.
+
 :::
 
 
@@ -1212,6 +1216,9 @@ fig3
 
 
 ```
+
+The forecast suggests that yield curve rates are expected to decrease gradually over time, signaling a potential easing of monetary conditions. In contrast, the Seoul Residential Property Price Index is projected to increase, moving in the opposite direction.
+A decline in long-term yields often signals market expectations for lower policy rates in the future. Such expectations tend to stimulate the housing market, as lower interest rates reduce borrowing costs, making it cheaper to finance real estate purchases. Consequently, easier monetary conditions can lead to stronger demand and higher residential property prices.
 
 
 :::
@@ -1791,14 +1798,14 @@ plot_ly() |>
               opacity = 0.3,
               showlegend = FALSE) |>
   layout(
-    title = "Forecast of KRW/USD exchange spot rate for next 32 month",
+    title = "Forecast of KRW/USD exchange spot rate for next 36 month",
     xaxis = list(title = "Year"),
     yaxis = list(title = "KRW to one USD")
   )
 ```
 
 
-
+The forecast demonstrates a good fit, closely following the pattern of previous values. Over time, the KRW is projected to appreciate gradually, showing only minor changes and limited fluctuations.
 
 :::
 
@@ -2188,9 +2195,13 @@ plot_ly() |>
 ```
 
 
+The forecast demonstrates a strong fit, effectively capturing the pattern of historical values. Over the projection horizon, Korea’s exports in U.S. dollars are expected to exhibit an overall upward trend, although short-term monthly fluctuations are likely to continue.
+
 :::
 
 
+
+# Conclusion 
 
 
 
