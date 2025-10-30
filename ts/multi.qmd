@@ -342,6 +342,7 @@ The VAR(10) model, while achieving the highest log-likelihood, shows minimal imp
 
 ### CV
 
+
 ```{r,message = F, warning = F}
 #| echo: true
 #| code-fold: true
@@ -416,6 +417,7 @@ for(i in 1:17) #here 17 is (n-k ) / 252 = 4440/252 =17.619
 }
 
 ```
+
 
 ```{r,message = F, warning = F}
 #| echo: true
@@ -513,87 +515,173 @@ Overall, the ACF of the residuals confirms that the VAR(5) model is appropriatel
 #| echo: true
 #| code-fold: true
 
-library(vars)
-library(forecast)
-library(plotly)
 
+df1$Date <- as.Date(df1$Date)
+n <- nrow(df1)
 
-var5 <- VAR(ts_obj, p = 5, type = "both")
+actual_frequency <- nrow(df1) / as.numeric(difftime(max(df1$Date), 
+                                                     min(df1$Date), 
+                                                     units = "days")) * 365.25
+
+ts_obj <- ts(df1[, c("us_spread", "log_kospi", "log_sp500")],
+             start = decimal_date(min(df1$Date)),
+             frequency = round(actual_frequency))
+
 
 
 h <- 504
 fcast <- forecast(var5, h = h)
 
+
+hist_dates <- df1$Date
+
+last_date <- max(df1$Date)
+
+all_future_dates <- seq(last_date + 1, by = "day", length.out = 1000)
+future_weekdays <- all_future_dates[!weekdays(all_future_dates) %in% c("Saturday", "Sunday")]
+fcast_dates <- head(future_weekdays, h)
+
+
 fig1 <- plot_ly() %>%
-  add_lines(x = as.numeric(time(tail(ts_obj[, "us_spread"], 2500))), 
-            y = as.numeric(tail(ts_obj[, "us_spread"], 2500)), 
-            name = "Historical", line = list(color = "black")) %>%
-  add_lines(x = as.numeric(time(fcast$forecast$us_spread$mean)), 
-            y = as.numeric(fcast$forecast$us_spread$mean), 
-            name = "Forecast", line = list(color = "blue", width = 2)) %>%
-  add_ribbons(x = as.numeric(time(fcast$forecast$us_spread$mean)), 
-              ymin = as.numeric(fcast$forecast$us_spread$lower[,2]), 
-              ymax = as.numeric(fcast$forecast$us_spread$upper[,2]),
-              name = "95% CI", fillcolor = "rgba(0,100,255,0.2)", 
-              line = list(color = "transparent")) %>%
-  add_ribbons(x = as.numeric(time(fcast$forecast$us_spread$mean)), 
-              ymin = as.numeric(fcast$forecast$us_spread$lower[,1]), 
-              ymax = as.numeric(fcast$forecast$us_spread$upper[,1]),
-              name = "80% CI", fillcolor = "rgba(0,100,255,0.4)", 
-              line = list(color = "transparent")) %>%
-  layout(title = "VAR(5) Forecast for us_spread",
-         xaxis = list(title = "Year"),
-         yaxis = list(title = "us_spread"),
-         hovermode = "x unified")
+  add_lines(
+    x = tail(hist_dates, 2500),
+    y = tail(df1$us_spread, 2500),
+    name = "Historical",
+    line = list(color = "black", width = 1),
+    hovertemplate = "%{x|%Y-%m-%d}<br>%{y:.4f}<extra></extra>"
+  ) %>%
+  add_lines(
+    x = fcast_dates,
+    y = as.numeric(fcast$forecast$us_spread$mean),
+    name = "Forecast",
+    line = list(color = "blue", width = 2),
+    hovertemplate = "%{x|%Y-%m-%d}<br>%{y:.4f}<extra></extra>"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = as.numeric(fcast$forecast$us_spread$lower[,2]),
+    ymax = as.numeric(fcast$forecast$us_spread$upper[,2]),
+    name = "95% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = as.numeric(fcast$forecast$us_spread$lower[,1]),
+    ymax = as.numeric(fcast$forecast$us_spread$upper[,1]),
+    name = "80% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  layout(
+    title = "VAR(5) Forecast for US Spread",
+    xaxis = list(
+      title = "Year",
+      type = "date",
+      tickformat = "%Y",     
+      dtick = "M12"         
+    ),
+    yaxis = list(title = "US Spread"),
+    hovermode = "x unified"
+  )
+
 
 fig2 <- plot_ly() %>%
-  add_lines(x = as.numeric(time(tail(ts_obj[, "log_kospi"], 2500))), 
-            y = exp(as.numeric(tail(ts_obj[, "log_kospi"], 2500))), 
-            name = "Historical", line = list(color = "black")) %>%
-  add_lines(x = as.numeric(time(fcast$forecast$log_kospi$mean)), 
-            y = exp(as.numeric(fcast$forecast$log_kospi$mean)), 
-            name = "Forecast", line = list(color = "blue", width = 2)) %>%
-  add_ribbons(x = as.numeric(time(fcast$forecast$log_kospi$mean)), 
-              ymin = exp(as.numeric(fcast$forecast$log_kospi$lower[,2])), 
-              ymax = exp(as.numeric(fcast$forecast$log_kospi$upper[,2])),
-              name = "95% CI", fillcolor = "rgba(0,100,255,0.2)", 
-              line = list(color = "transparent")) %>%
-  add_ribbons(x = as.numeric(time(fcast$forecast$log_kospi$mean)), 
-              ymin = exp(as.numeric(fcast$forecast$log_kospi$lower[,1])), 
-              ymax = exp(as.numeric(fcast$forecast$log_kospi$upper[,1])),
-              name = "80% CI", fillcolor = "rgba(0,100,255,0.4)", 
-              line = list(color = "transparent")) %>%
-  layout(title = "VAR(5) Forecast for KOSPI",
-         xaxis = list(title = "Year"),
-         yaxis = list(title = "KOSPI"),
-         hovermode = "x unified")
+  add_lines(
+    x = tail(hist_dates, 2500),
+    y = exp(tail(df1$log_kospi, 2500)),
+    name = "Historical",
+    line = list(color = "black", width = 1),
+    hovertemplate = "%{x|%Y-%m-%d}<br>%{y:.2f}<extra></extra>"
+  ) %>%
+  add_lines(
+    x = fcast_dates,
+    y = exp(as.numeric(fcast$forecast$log_kospi$mean)),
+    name = "Forecast",
+    line = list(color = "blue", width = 2),
+    hovertemplate = "%{x|%Y-%m-%d}<br>%{y:.2f}<extra></extra>"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = exp(as.numeric(fcast$forecast$log_kospi$lower[,2])),
+    ymax = exp(as.numeric(fcast$forecast$log_kospi$upper[,2])),
+    name = "95% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = exp(as.numeric(fcast$forecast$log_kospi$lower[,1])),
+    ymax = exp(as.numeric(fcast$forecast$log_kospi$upper[,1])),
+    name = "80% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  layout(
+    title = "VAR(5) Forecast for KOSPI",
+    xaxis = list(
+      title = "Year",
+      type = "date",
+      tickformat = "%Y",
+      dtick = "M12"
+    ),
+    yaxis = list(title = "KOSPI Index"),
+    hovermode = "x unified"
+  )
+
 
 fig3 <- plot_ly() %>%
-  add_lines(x = as.numeric(time(tail(ts_obj[, "log_sp500"], 2500))), 
-            y = exp(as.numeric(tail(ts_obj[, "log_sp500"], 2500))), 
-            name = "Historical", line = list(color = "black")) %>%
-  add_lines(x = as.numeric(time(fcast$forecast$log_sp500$mean)), 
-            y = exp(as.numeric(fcast$forecast$log_sp500$mean)), 
-            name = "Forecast", line = list(color = "blue", width = 2)) %>%
-  add_ribbons(x = as.numeric(time(fcast$forecast$log_sp500$mean)), 
-              ymin = exp(as.numeric(fcast$forecast$log_sp500$lower[,2])), 
-              ymax = exp(as.numeric(fcast$forecast$log_sp500$upper[,2])),
-              name = "95% CI", fillcolor = "rgba(0,100,255,0.2)", 
-              line = list(color = "transparent")) %>%
-  add_ribbons(x = as.numeric(time(fcast$forecast$log_sp500$mean)), 
-              ymin = exp(as.numeric(fcast$forecast$log_sp500$lower[,1])), 
-              ymax = exp(as.numeric(fcast$forecast$log_sp500$upper[,1])),
-              name = "80% CI", fillcolor = "rgba(0,100,255,0.4)", 
-              line = list(color = "transparent")) %>%
-  layout(title = "VAR(5) Forecast for S&P500",
-         xaxis = list(title = "Year"),
-         yaxis = list(title = "S&P500"),
-         hovermode = "x unified")
+  add_lines(
+    x = tail(hist_dates, 2500),
+    y = exp(tail(df1$log_sp500, 2500)),
+    name = "Historical",
+    line = list(color = "black", width = 1),
+    hovertemplate = "%{x|%Y-%m-%d}<br>%{y:.2f}<extra></extra>"
+  ) %>%
+  add_lines(
+    x = fcast_dates,
+    y = exp(as.numeric(fcast$forecast$log_sp500$mean)),
+    name = "Forecast",
+    line = list(color = "blue", width = 2),
+    hovertemplate = "%{x|%Y-%m-%d}<br>%{y:.2f}<extra></extra>"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = exp(as.numeric(fcast$forecast$log_sp500$lower[,2])),
+    ymax = exp(as.numeric(fcast$forecast$log_sp500$upper[,2])),
+    name = "95% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = exp(as.numeric(fcast$forecast$log_sp500$lower[,1])),
+    ymax = exp(as.numeric(fcast$forecast$log_sp500$upper[,1])),
+    name = "80% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  layout(
+    title = "VAR(5) Forecast for S&P 500",
+    xaxis = list(
+      title = "Year",
+      type = "date",
+      tickformat = "%Y",
+      dtick = "M12"
+    ),
+    yaxis = list(title = "S&P 500 Index"),
+    hovermode = "x unified"
+  )
 
 fig1
 fig2
 fig3
+
 ```
+
+
+
+
 
 :::
 
@@ -867,80 +955,154 @@ Overall, the ACF of the residuals confirms that the VAR(2) model is appropriatel
 #| echo: true
 #| code-fold: true
 
-
 h <- 36
 fcast <- forecast(var1, h = h)
 
+hist_dates <- df2$Date
+
+
+last_date <- max(df2$Date)
+fcast_dates <- seq(last_date, by = "month", length.out = h + 1)[-1]
+fcast_dates <- ceiling_date(fcast_dates, "month") - days(1)
+
 fig1 <- plot_ly() %>%
-  add_lines(x = as.numeric(time(tail(ts_obj[, "housing"], 100))), 
-            y = as.numeric(tail(ts_obj[, "housing"], 100)), 
-            name = "Historical", line = list(color = "black")) %>%
-  add_lines(x = as.numeric(time(fcast$forecast$housing$mean)), 
-            y = as.numeric(fcast$forecast$housing$mean), 
-            name = "Forecast", line = list(color = "blue", width = 2)) %>%
-  add_ribbons(x = as.numeric(time(fcast$forecast$housing$mean)), 
-              ymin = as.numeric(fcast$forecast$housing$lower[,2]), 
-              ymax = as.numeric(fcast$forecast$housing$upper[,2]),
-              name = "95% CI", 
-              line = list(color = "transparent")) %>%
-  add_ribbons(x = as.numeric(time(fcast$forecast$housing$mean)), 
-              ymin = as.numeric(fcast$forecast$housing$lower[,1]), 
-              ymax = as.numeric(fcast$forecast$housing$upper[,1]),
-              name = "80% CI", 
-              line = list(color = "transparent")) %>%
-  layout(title = "VAR(2) Forecast for housing",
-         xaxis = list(title = "Year"),
-         yaxis = list(title = "housing"),
-         hovermode = "x unified")
+
+  add_lines(
+    x = tail(hist_dates, 100),
+    y = tail(df2$housing, 100),
+    name = "Historical",
+    line = list(color = "black", width = 1),
+    hovertemplate = "%{x|%Y-%m}<br>%{y:.2f}<extra></extra>"
+  ) %>%
+
+  add_lines(
+    x = fcast_dates,
+    y = as.numeric(fcast$forecast$housing$mean),
+    name = "Forecast",
+    line = list(color = "blue", width = 2),
+    hovertemplate = "%{x|%Y-%m}<br>%{y:.2f}<extra></extra>"
+  ) %>%
+
+  add_ribbons(
+    x = fcast_dates,
+    ymin = as.numeric(fcast$forecast$housing$lower[,2]),
+    ymax = as.numeric(fcast$forecast$housing$upper[,2]),
+    name = "95% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  # 80% CI
+  add_ribbons(
+    x = fcast_dates,
+    ymin = as.numeric(fcast$forecast$housing$lower[,1]),
+    ymax = as.numeric(fcast$forecast$housing$upper[,1]),
+    name = "80% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  layout(
+    title = "VAR(2) Forecast for Housing",
+    xaxis = list(
+      title = "Year",
+      type = "date",
+      tickformat = "%Y",
+      dtick = "M12"
+    ),
+    yaxis = list(title = "Housing Index"),
+    hovermode = "x unified"
+  )
 
 fig2 <- plot_ly() %>%
-  add_lines(x = as.numeric(time(tail(ts_obj[, "KR_10Y"], 100))), 
-            y = as.numeric(tail(ts_obj[, "KR_10Y"], 100)), 
-            name = "Historical", line = list(color = "black")) %>%
-  add_lines(x = as.numeric(time(fcast$forecast$KR_10Y$mean)), 
-            y = as.numeric(fcast$forecast$KR_10Y$mean), 
-            name = "Forecast", line = list(color = "blue", width = 2)) %>%
-  add_ribbons(x = as.numeric(time(fcast$forecast$KR_10Y$mean)), 
-              ymin = as.numeric(fcast$forecast$KR_10Y$lower[,2]), 
-              ymax = as.numeric(fcast$forecast$KR_10Y$upper[,2]),
-              name = "95% CI", 
-              line = list(color = "transparent")) %>%
-  add_ribbons(x = as.numeric(time(fcast$forecast$KR_10Y$mean)), 
-              ymin = as.numeric(fcast$forecast$KR_10Y$lower[,1]), 
-              ymax = as.numeric(fcast$forecast$KR_10Y$upper[,1]),
-              name = "80% CI",  
-              line = list(color = "transparent")) %>%
-  layout(title = "VAR(2) Forecast for KR_10Y",
-         xaxis = list(title = "Year"),
-         yaxis = list(title = "KR_10Y"),
-         hovermode = "x unified")
+  add_lines(
+    x = tail(hist_dates, 100),
+    y = tail(df2$KR_10Y, 100),
+    name = "Historical",
+    line = list(color = "black", width = 1),
+    hovertemplate = "%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>"
+  ) %>%
+  add_lines(
+    x = fcast_dates,
+    y = as.numeric(fcast$forecast$KR_10Y$mean),
+    name = "Forecast",
+    line = list(color = "blue", width = 2),
+    hovertemplate = "%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = as.numeric(fcast$forecast$KR_10Y$lower[,2]),
+    ymax = as.numeric(fcast$forecast$KR_10Y$upper[,2]),
+    name = "95% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = as.numeric(fcast$forecast$KR_10Y$lower[,1]),
+    ymax = as.numeric(fcast$forecast$KR_10Y$upper[,1]),
+    name = "80% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  layout(
+    title = "VAR(2) Forecast for Korea 10Y Yield",
+    xaxis = list(
+      title = "Year",
+      type = "date",
+      tickformat = "%Y",
+      dtick = "M12"
+    ),
+    yaxis = list(title = "Yield (%)"),
+    hovermode = "x unified"
+  )
+
 
 fig3 <- plot_ly() %>%
-  add_lines(x = as.numeric(time(tail(ts_obj[, "US_10Y"], 100))), 
-            y = as.numeric(tail(ts_obj[, "US_10Y"], 100)), 
-            name = "Historical", line = list(color = "black")) %>%
-  add_lines(x = as.numeric(time(fcast$forecast$US_10Y$mean)), 
-            y = as.numeric(fcast$forecast$US_10Y$mean), 
-            name = "Forecast", line = list(color = "blue", width = 2)) %>%
-  add_ribbons(x = as.numeric(time(fcast$forecast$US_10Y$mean)), 
-              ymin = as.numeric(fcast$forecast$US_10Y$lower[,2]), 
-              ymax = as.numeric(fcast$forecast$US_10Y$upper[,2]),
-              name = "95% CI",  
-              line = list(color = "transparent")) %>%
-  add_ribbons(x = as.numeric(time(fcast$forecast$US_10Y$mean)), 
-              ymin = as.numeric(fcast$forecast$US_10Y$lower[,1]), 
-              ymax = as.numeric(fcast$forecast$US_10Y$upper[,1]),
-              name = "80% CI", 
-              line = list(color = "transparent")) %>%
-  layout(title = "VAR(2) Forecast for US_10Y",
-         xaxis = list(title = "Year"),
-         yaxis = list(title = "US_10Y"),
-         hovermode = "x unified")
+  add_lines(
+    x = tail(hist_dates, 100),
+    y = tail(df2$US_10Y, 100),
+    name = "Historical",
+    line = list(color = "black", width = 1),
+    hovertemplate = "%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>"
+  ) %>%
+  add_lines(
+    x = fcast_dates,
+    y = as.numeric(fcast$forecast$US_10Y$mean),
+    name = "Forecast",
+    line = list(color = "blue", width = 2),
+    hovertemplate = "%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = as.numeric(fcast$forecast$US_10Y$lower[,2]),
+    ymax = as.numeric(fcast$forecast$US_10Y$upper[,2]),
+    name = "95% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = as.numeric(fcast$forecast$US_10Y$lower[,1]),
+    ymax = as.numeric(fcast$forecast$US_10Y$upper[,1]),
+    name = "80% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  layout(
+    title = "VAR(2) Forecast for US 10Y Yield",
+    xaxis = list(
+      title = "Year",
+      type = "date",
+      tickformat = "%Y",
+      dtick = "M12"
+    ),
+    yaxis = list(title = "Yield (%)"),
+    hovermode = "x unified"
+  )
+
 
 fig1
 fig2
 fig3
-
 
 
 ```
