@@ -8,9 +8,15 @@ format: html
 
 # note
 
-there are three models, but more models will be added
+Currently there are four models, but more models will be added
 
 :::
+
+# Literature reviews
+
+
+
+
 
 
 ```{r,message = F, warning = F}
@@ -227,22 +233,22 @@ vix_monthly <- vix %>%
 ```
 
 
-- Models 
-Sarimax: 
+# Models 
+
+- SARIMAX: 
 
 1.  South korea exports(vs USA) ~ VIX + US manufacturing Index + KRW/USD spot rate
 
-2.   USD/KRW spot rate ~ us-korea spread rate 3years+ us-korea spread rate 3years+ S&P500 + dollar index
+2.  USD/KRW spot rate ~ us-korea spread rate 3years+ us-korea spread rate 3years+ S&P500 + dollar index
 
-var: 
+- VAR: 
 
-3. equity: s&p500, us_yield_spread,KOSPI index
 
-4. trade : KR_exports, usd index, usd/krw spot rate
+3. equity: s&p500, vix, us_yield_spread,KOSPI index
 
 # VAR model
 
-### equity: s&p500, vix, us_yield_spread,KOSPI index
+### equity: s&p500, us_yield_spread,KOSPI index
 
 
 ::: panel-tabset
@@ -468,7 +474,11 @@ ggplot(data = rmse_combined, aes(x = Date, y = us_spread, color = Model)) +
   theme_minimal()
 ```
 
-```{r}
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+
 var5<- VAR(ts_obj,p = 5,type= "both")
 acf(residuals(var5))
 ```
@@ -569,7 +579,7 @@ fig3
 
 
 
-# KR_exports, korea spread rate, usd/krw spot rate
+# US treasury rate 10 Years, South Korea government bond rate 10Years, seoul housing index
 
 ### data cleaning process
 
@@ -577,36 +587,30 @@ fig3
 #| echo: true
 #| code-fold: true
 
-kor_monthly <- kr %>%
+kor_yield_10<- kor_yield%>%
+  dplyr::select(Date,KR_10Y)
+kor_yield_monthly <- kor_yield_10 %>%
   mutate(year_month = floor_date(Date, "month")) %>%
   group_by(year_month) %>%
   slice_tail(n = 1) %>%
   ungroup() %>%
   mutate(Date = ceiling_date(year_month, "month") - days(1))%>%
-  dplyr::select(Date,krw)
+  dplyr::select(Date,KR_10Y)
 
-export<- trade%>%
-  dplyr::select(Date,export_USD)
-trade_monthly <-export %>%
-  mutate(Date = as.Date(Date)) %>%
-  mutate(Date = ceiling_date(Date, "month") - days(1)) %>%
-  rename(export_usd = export_USD)%>%
-  dplyr::select(Date, export_usd)
 
-usd_monthly<-usd%>%
+us_yield_10<- us_yield%>%
+  dplyr::select(Date,US_10Y)
+us_yield_monthly <- us_yield_10 %>%
   mutate(year_month = floor_date(Date, "month")) %>%
   group_by(year_month) %>%
   slice_tail(n = 1) %>%
   ungroup() %>%
   mutate(Date = ceiling_date(year_month, "month") - days(1))%>%
-  mutate(log_usd_index = log(usd_index))%>%
-  dplyr::select(Date,log_usd_index)
-  
+  dplyr::select(Date,US_10Y)
 
-
-df2<- trade_monthly%>%
-  left_join(kor_monthly,by = "Date")%>%
-  left_join(usd_monthly, by = "Date")
+df2<- housing%>%
+  left_join(kor_yield_monthly,by = "Date")%>%
+  left_join(us_yield_monthly, by = "Date")
 
 start_year_df2  <- year(min(df2$Date))
 start_month_df2 <- month(min(df2$Date))
@@ -621,25 +625,24 @@ start_month_df2 <- month(min(df2$Date))
 
 ### time series plot
 
-```{r}
-start_year_df2  <- year(min(df2$Date))
- start_month_df2 <- month(min(df2$Date))
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
 
+p2 <- plot_ly(df2, x = ~Date, y = ~housing, type = 'scatter', mode = 'lines',
+              name = "Seoul housing Index") %>%
+  layout(yaxis = list(title = "Seoul housing Index", titlefont = list(size = 14), tickfont = list(size = 12)))
 
-p2 <- plot_ly(df2, x = ~Date, y = ~log_usd_index, type = 'scatter', mode = 'lines',
-              name = "USD Index(log)") %>%
-  layout(yaxis = list(title = "USD Index(log)", titlefont = list(size = 14), tickfont = list(size = 12)))
+p3 <- plot_ly(df2, x = ~Date, y = ~KR_10Y, type = 'scatter', mode = 'lines',
+              name = "South Korea government bond yield rate(10years)") %>%
+  layout(yaxis = list(title = "South Korea yield rate(10years)", titlefont = list(size = 14), tickfont = list(size = 12)))
 
-p3 <- plot_ly(df2, x = ~Date, y = ~export_usd, type = 'scatter', mode = 'lines',
-              name = "trade exports: kor vs U.S.(thou USD)") %>%
-  layout(yaxis = list(title = "trade exports: kor vs U.S.(thou USD)", titlefont = list(size = 14), tickfont = list(size = 12)))
-
-p4 <- plot_ly(df2, x = ~Date, y = ~krw, type = 'scatter', mode = 'lines',
-              name = "KRW/USD spot rate") %>%
+p4 <- plot_ly(df2, x = ~Date, y = ~US_10Y, type = 'scatter', mode = 'lines',
+              name = "U.S. treasury bond yield rate(10years)") %>%
   layout(yaxis = list(title = "KRW/USD spot rate", titlefont = list(size = 14)))
 
 subplot( p2, p3,p4, nrows = 3, shareX = TRUE, titleX = TRUE) %>%
-  layout(title = list(text = "trade exports & USD index & KRW/USD spot rate"))
+  layout(title = list(text = "U.S. treasury bond yield rate(10years)"))
     
 ```
 
@@ -651,7 +654,7 @@ subplot( p2, p3,p4, nrows = 3, shareX = TRUE, titleX = TRUE) %>%
 #| code-fold: true
 
 new_df2<- df2[,c(2:4)]
-df2.ts<-ts(new_df2,star=decimal_date(as.Date("1993-01-31",format = "%Y-%m-%d")),frequency = 12)
+df2.ts<-ts(new_df2,star=decimal_date(as.Date("2003-11-30",format = "%Y-%m-%d")),frequency = 12)
 VARselect(df2.ts, lag.max=10, type="both")
 ```
 
@@ -661,7 +664,7 @@ VARselect(df2.ts, lag.max=10, type="both")
 #| echo: true
 #| code-fold: true
 
-summary(fit <- VAR(new_df2, p=1, type="both"))
+summary(fit <- VAR(new_df2, p=2, type="both"))
 ```
 
 ```{r,message = F, warning = F}
@@ -679,92 +682,103 @@ summary(fit <- VAR(new_df2, p=3, type="both"))
 #| code-fold: true
 
 
-n=length(df2$Date)
-k=98 #25% of data for training
-#n-k=294; 294/12=24.5
-rmse1 <- matrix(NA, 294,3) #here 294 is n-k
-rmse2 <- matrix(NA, 294,3)
-year<-c()
-# Convert data frame to time series object
-ts_obj <- ts(df2[, c(2:4)], start=decimal_date(as.Date("1993-01-31",format = "%Y-%m-%d")),frequency = 12)
-st <- tsp(ts_obj)[1]+(k-1)/12 
-for(i in 1:24) #here 24 is (n-k ) / 12 = 294/12 =24.5
-{
-  
-  xtrain <- window(ts_obj, end=st + i-1)
-  xtest <- window(ts_obj, start=st + (i-1) + 1/12, end=st + i)
-  
-  # first model p = 1 
-  fit <- vars::VAR(xtrain, p=1, type='both')
-  fcast <- predict(fit, n.ahead = 12)
-  
-  fexport<-fcast$fcst$export_usd
-  fkrw<-fcast$fcst$krw
-  fusd<-fcast$fcst$log_usd_index
-  
-  ff1<-data.frame(fexport[,1],fkrw[,1],fusd[,1]) 
-  year<-st + (i-1) + 1/12 
-  
-  
-  ff1<-ts(ff1,start=c(year,1),frequency = 12)
-  
-  a = 12*i-11 
-  b= 12*i 
- 
-  rmse1[c(a:b),]  <-sqrt((ff1-xtest)^2)
-  
-  #second model p = 3
-  fit2 <- vars::VAR(xtrain, p=3, type='both')
-  fcast2 <- predict(fit2, n.ahead = 12)
-  
-  fexport2<-fcast2$fcst$export_usd
-  fkrw2<-fcast2$fcst$krw
-  fusd2<-fcast2$fcst$log_usd_index
-  ff2<-data.frame(fexport2[,1],fkrw2[,1],fusd2[,1])
-  
-  year<-st + (i-1) + 1/12
-  
-  ff2<-ts(ff2,start=c(year,1),frequency = 12)
-  
-  a = 12*i-11
-  b= 12*i
-  rmse2[c(a:b),]  <-sqrt((ff2-xtest)^2)
+df2$Date <- as.Date(df2$Date)
+
+series_names <- c("housing", "KR_10Y", "US_10Y")
+
+
+
+ts_obj <- ts(df2[, series_names],
+             start = c(year(df2$Date[1]), month(df2$Date[1])),
+             frequency = 12)
+
+
+n <- nrow(df2)
+k<- 69
+h <- 12
+n_k <- n - k
+num_blocks <- floor(n_k / h)
+
+rmse2 <- matrix(NA_real_, n_k, 3)   
+rmse3 <- matrix(NA_real_, n_k, 3)  
+
+
+st <- tsp(ts_obj)[1] + (k - 1) / 12
+
+
+for (i in 1:num_blocks) {
+  xtrain <- window(ts_obj, end = st + i - 1)
+
+  xtest  <- window(ts_obj,
+                   start = st + (i - 1) + 1/12,
+                   end   = st + i)
+
+  if (NROW(xtest) != h) next  
+
+  fit2   <- vars::VAR(xtrain, p = 2, type = "both")
+  fcast2 <- predict(fit2, n.ahead = h)
+
+  ff2 <- cbind(
+    fcast2$fcst$housing[, 1],
+    fcast2$fcst$KR_10Y [, 1],
+    fcast2$fcst$US_10Y [, 1]
+  )
+
+  year <- st + (i - 1) + 1/12
+  ff2  <- ts(ff2, start = c(year, 1), frequency = 12)
+
+  a <- 12 * i - 11
+  b <- 12 * i
+  rmse2[a:b, ] <- sqrt((ff2 - xtest)^2)
+
+  fit3   <- vars::VAR(xtrain, p = 3, type = "both")
+  fcast3 <- predict(fit3, n.ahead = h)
+
+  ff3 <- cbind(
+    fcast3$fcst$housing[, 1],
+    fcast3$fcst$KR_10Y [, 1],
+    fcast3$fcst$US_10Y [, 1]
+  )
+
+  ff3 <- ts(ff3, start = c(year, 1), frequency = 12)
+
+  rmse3[a:b, ] <- sqrt((ff3 - xtest)^2)
 }
 
+colnames(rmse2) <- series_names
+colnames(rmse3) <- series_names
+
+month_index <- 1:n_k
+dates1 <- as.Date(df2$Date[(k + 1):n])
+
+if (length(dates1) < n_k) {
+  dates1 <- c(dates1, rep(as.Date(NA), n_k - length(dates1)))
+} else if (length(dates1) > n_k) {
+  dates1 <- dates1[1:n_k]
+}
+
+rmse2_df <- data.frame(month_index, dates1, rmse2, row.names = NULL)
+names(rmse2_df) <- c("Month","Date", series_names)
+rmse2_df$Model <- "VAR(2)"
+
+rmse3_df <- data.frame(month_index, dates1, rmse3, row.names = NULL)
+names(rmse3_df) <- c("Month","Date", series_names)
+rmse3_df$Model <- "VAR(3)"
+
+rmse_combined <- rbind(rmse2_df, rmse3_df)
+
 
 ```
+
 
 ```{r,message = F, warning = F}
 #| echo: true
 #| code-fold: true
 
-month_index = 1:294 #monthly index
-# Create date sequence for test period (starts from observation k+1 = 99)
-test_dates = as.Date(df2$Date[(k+1):n])
-rmse1 = data.frame(month_index,test_dates,rmse1)
-names(rmse1) =c("Month","Date","export_usd","krw","log_usd_index")
-rmse2 = data.frame(month_index,test_dates,rmse2)
-names(rmse2) =c("Month","Date","export_usd","krw","log_usd_index")
-# Combine both data frames and add a Model column
-rmse1$Model <- "VAR(1)"
-rmse2$Model <- "VAR(3)"
-rmse_combined <- rbind(rmse1, rmse2)
-# Combine both data frames and add a Model column
-rmse1$Model <- "VAR(1)"
-rmse2$Model <- "VAR(3)"
-rmse_combined <- rbind(rmse1, rmse2)
-```
-
-
-```{r,message = F, warning = F}
-#| echo: true
-#| code-fold: true
-
-
-ggplot(data = rmse_combined, aes(x = Date, y = krw, color = Model)) + 
+ggplot(data = rmse_combined, aes(x = Date, y = housing, color = Model)) +
   geom_line() +
   labs(
-    title = "CV RMSE for krw",
+    title = "CV RMSE for seoul housing index",
     x = "Date",
     y = "RMSE",
     color = "Model"
@@ -777,26 +791,25 @@ ggplot(data = rmse_combined, aes(x = Date, y = krw, color = Model)) +
 #| echo: true
 #| code-fold: true
 
-ggplot(data = rmse_combined, aes(x = Date, y = log_usd_index, color = Model)) + 
+ggplot(data = rmse_combined, aes(x = Date, y = KR_10Y, color = Model)) +
   geom_line() +
   labs(
-    title = "CV RMSE for log_usd_index",
+    title = "CV RMSE for korea government bond rate 10 years",
     x = "Date",
     y = "RMSE",
     color = "Model"
   ) +
   theme_minimal()
+
 ```
 
 ```{r,message = F, warning = F}
 #| echo: true
 #| code-fold: true
-
-# Create the export_usd RMSE plot with a legend
-ggplot(data = rmse_combined, aes(x = Date, y = export_usd, color = Model)) + 
+ggplot(data = rmse_combined, aes(x = Date, y = US_10Y, color = Model)) +
   geom_line() +
   labs(
-    title = "CV RMSE for export_usd",
+    title = "CV RMSE for US treasury rate 10 years",
     x = "Date",
     y = "RMSE",
     color = "Model"
@@ -804,8 +817,11 @@ ggplot(data = rmse_combined, aes(x = Date, y = export_usd, color = Model)) +
   theme_minimal()
 ```
 
-```{r}
-var1<- VAR(ts_obj,p = 1,type= "both")
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+var1<- VAR(ts_obj,p = 2,type= "both")
 acf(residuals(var1))
 ```
 
@@ -813,85 +829,87 @@ acf(residuals(var1))
 
 ### Forecast 
 
+
 ```{r,message = F, warning = F}
 #| echo: true
 #| code-fold: true
 
-# Forecast 12 months ahead
+
 h <- 36
 fcast <- forecast(var1, h = h)
 
-# export_usd plot (not log-transformed, keep as is)
 fig1 <- plot_ly() %>%
-  add_lines(x = as.numeric(time(tail(ts_obj[, "export_usd"], 100))), 
-            y = as.numeric(tail(ts_obj[, "export_usd"], 100)), 
+  add_lines(x = as.numeric(time(tail(ts_obj[, "housing"], 100))), 
+            y = as.numeric(tail(ts_obj[, "housing"], 100)), 
             name = "Historical", line = list(color = "black")) %>%
-  add_lines(x = as.numeric(time(fcast$forecast$export_usd$mean)), 
-            y = as.numeric(fcast$forecast$export_usd$mean), 
+  add_lines(x = as.numeric(time(fcast$forecast$housing$mean)), 
+            y = as.numeric(fcast$forecast$housing$mean), 
             name = "Forecast", line = list(color = "blue", width = 2)) %>%
-  add_ribbons(x = as.numeric(time(fcast$forecast$export_usd$mean)), 
-              ymin = as.numeric(fcast$forecast$export_usd$lower[,2]), 
-              ymax = as.numeric(fcast$forecast$export_usd$upper[,2]),
-              name = "95% CI", fillcolor = "rgba(0,100,255,0.2)", 
+  add_ribbons(x = as.numeric(time(fcast$forecast$housing$mean)), 
+              ymin = as.numeric(fcast$forecast$housing$lower[,2]), 
+              ymax = as.numeric(fcast$forecast$housing$upper[,2]),
+              name = "95% CI", 
               line = list(color = "transparent")) %>%
-  add_ribbons(x = as.numeric(time(fcast$forecast$export_usd$mean)), 
-              ymin = as.numeric(fcast$forecast$export_usd$lower[,1]), 
-              ymax = as.numeric(fcast$forecast$export_usd$upper[,1]),
-              name = "80% CI", fillcolor = "rgba(0,100,255,0.4)", 
+  add_ribbons(x = as.numeric(time(fcast$forecast$housing$mean)), 
+              ymin = as.numeric(fcast$forecast$housing$lower[,1]), 
+              ymax = as.numeric(fcast$forecast$housing$upper[,1]),
+              name = "80% CI", 
               line = list(color = "transparent")) %>%
-  layout(title = "VAR(1) Forecast for export_usd",
+  layout(title = "VAR(1) Forecast for housing",
          xaxis = list(title = "Year"),
-         yaxis = list(title = "export_usd"),
+         yaxis = list(title = "housing"),
          hovermode = "x unified")
 
 fig2 <- plot_ly() %>%
-  add_lines(x = as.numeric(time(tail(ts_obj[, "krw"], 100))), 
-            y = as.numeric(tail(ts_obj[, "krw"], 100)), 
+  add_lines(x = as.numeric(time(tail(ts_obj[, "KR_10Y"], 100))), 
+            y = as.numeric(tail(ts_obj[, "KR_10Y"], 100)), 
             name = "Historical", line = list(color = "black")) %>%
-  add_lines(x = as.numeric(time(fcast$forecast$krw$mean)), 
-            y = as.numeric(fcast$forecast$krw$mean), 
+  add_lines(x = as.numeric(time(fcast$forecast$KR_10Y$mean)), 
+            y = as.numeric(fcast$forecast$KR_10Y$mean), 
             name = "Forecast", line = list(color = "blue", width = 2)) %>%
-  add_ribbons(x = as.numeric(time(fcast$forecast$krw$mean)), 
-              ymin = as.numeric(fcast$forecast$krw$lower[,2]), 
-              ymax = as.numeric(fcast$forecast$krw$upper[,2]),
-              name = "95% CI", fillcolor = "rgba(0,100,255,0.2)", 
+  add_ribbons(x = as.numeric(time(fcast$forecast$KR_10Y$mean)), 
+              ymin = as.numeric(fcast$forecast$KR_10Y$lower[,2]), 
+              ymax = as.numeric(fcast$forecast$KR_10Y$upper[,2]),
+              name = "95% CI", 
               line = list(color = "transparent")) %>%
-  add_ribbons(x = as.numeric(time(fcast$forecast$krw$mean)), 
-              ymin = as.numeric(fcast$forecast$krw$lower[,1]), 
-              ymax = as.numeric(fcast$forecast$krw$upper[,1]),
-              name = "80% CI", fillcolor = "rgba(0,100,255,0.4)", 
+  add_ribbons(x = as.numeric(time(fcast$forecast$KR_10Y$mean)), 
+              ymin = as.numeric(fcast$forecast$KR_10Y$lower[,1]), 
+              ymax = as.numeric(fcast$forecast$KR_10Y$upper[,1]),
+              name = "80% CI",  
               line = list(color = "transparent")) %>%
-  layout(title = "VAR(1) Forecast for krw",
+  layout(title = "VAR(1) Forecast for KR_10Y",
          xaxis = list(title = "Year"),
-         yaxis = list(title = "krw"),
+         yaxis = list(title = "KR_10Y"),
          hovermode = "x unified")
 
 fig3 <- plot_ly() %>%
-  add_lines(x = as.numeric(time(tail(ts_obj[, "log_usd_index"], 100))), 
-            y = exp(as.numeric(tail(ts_obj[, "log_usd_index"], 100))), 
+  add_lines(x = as.numeric(time(tail(ts_obj[, "US_10Y"], 100))), 
+            y = as.numeric(tail(ts_obj[, "US_10Y"], 100)), 
             name = "Historical", line = list(color = "black")) %>%
-  add_lines(x = as.numeric(time(fcast$forecast$log_usd_index$mean)), 
-            y = exp(as.numeric(fcast$forecast$log_usd_index$mean)), 
+  add_lines(x = as.numeric(time(fcast$forecast$US_10Y$mean)), 
+            y = as.numeric(fcast$forecast$US_10Y$mean), 
             name = "Forecast", line = list(color = "blue", width = 2)) %>%
-  add_ribbons(x = as.numeric(time(fcast$forecast$log_usd_index$mean)), 
-              ymin = exp(as.numeric(fcast$forecast$log_usd_index$lower[,2])), 
-              ymax = exp(as.numeric(fcast$forecast$log_usd_index$upper[,2])),
-              name = "95% CI", fillcolor = "rgba(0,100,255,0.2)", 
+  add_ribbons(x = as.numeric(time(fcast$forecast$US_10Y$mean)), 
+              ymin = as.numeric(fcast$forecast$US_10Y$lower[,2]), 
+              ymax = as.numeric(fcast$forecast$US_10Y$upper[,2]),
+              name = "95% CI",  
               line = list(color = "transparent")) %>%
-  add_ribbons(x = as.numeric(time(fcast$forecast$log_usd_index$mean)), 
-              ymin = exp(as.numeric(fcast$forecast$log_usd_index$lower[,1])), 
-              ymax = exp(as.numeric(fcast$forecast$log_usd_index$upper[,1])),
-              name = "80% CI", fillcolor = "rgba(0,100,255,0.4)", 
+  add_ribbons(x = as.numeric(time(fcast$forecast$US_10Y$mean)), 
+              ymin = as.numeric(fcast$forecast$US_10Y$lower[,1]), 
+              ymax = as.numeric(fcast$forecast$US_10Y$upper[,1]),
+              name = "80% CI", 
               line = list(color = "transparent")) %>%
-  layout(title = "VAR(1) Forecast for USD Index",
+  layout(title = "VAR(1) Forecast for US_10Y",
          xaxis = list(title = "Year"),
-         yaxis = list(title = "USD Index"),
+         yaxis = list(title = "US_10Y"),
          hovermode = "x unified")
-
 
 fig1
 fig2
 fig3
+
+
+
 ```
 
 
@@ -1801,6 +1819,25 @@ plot_ly() |>
 ```
 
 
-
-
 :::
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
