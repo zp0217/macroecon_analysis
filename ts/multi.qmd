@@ -486,6 +486,26 @@ var5<- VAR(ts_obj,p = 5,type= "both")
 acf(residuals(var5))
 ```
 
+
+
+The three line plots above show the RMSE values for three variables, comparing the VAR(2),VAR(5) and var(10) models. Although it’s somewhat difficult to clearly distinguish which model performs better based solely on the plots, the VAR(2) model appears to have slightly lower RMSE values overall. Therefore, I decided to proceed with the VAR(5) model for further analysis.
+
+last plot is a acf plot for var(5) model's residuals. From the plot, the residual autocorrelations are mostly within the 95% confidence bounds , except for a strong spike at lag 0, which simply reflects the correlation of each residual with itself. The absence of significant spikes beyond lag 0 suggests that the VAR(5) specification has successfully removed serial correlation from the system. This implies that the model order (p=5) is sufficient. 
+
+Overall, the ACF of the residuals confirms that the VAR(5) model is appropriately specified and that the residuals behave as approximately white noise. 
+
+### model equation
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+summary(fit <- VAR(new_df1, p=5, type="both"))
+
+```
+
+
+
 ### forecast
 
 ```{r,message = F, warning = F}
@@ -825,9 +845,24 @@ acf(residuals(var1))
 ```
 
 
+The three line plots above show the RMSE values for three variables, comparing the VAR(2) and VAR(3) models. Although it’s somewhat difficult to clearly distinguish which model performs better based solely on the plots, the VAR(2) model appears to have slightly lower RMSE values overall. Therefore, I decided to proceed with the VAR(2) model for further analysis.
+
+last plot is a acf plot for var(2) model's residuals. From the plot, the residual autocorrelations are mostly within the 95% confidence bounds , except for a strong spike at lag 0, which simply reflects the correlation of each residual with itself. The absence of significant spikes beyond lag 0 suggests that the VAR(2) specification has successfully removed serial correlation from the system. This implies that the model order (p=2) is sufficient. 
+
+Overall, the ACF of the residuals confirms that the VAR(2) model is appropriately specified and that the residuals behave as approximately white noise. 
+
+### model equation
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+summary(fit <- VAR(new_df2, p=2, type="both"))
+
+```
+
 
 ### Forecast 
-
 
 ```{r,message = F, warning = F}
 #| echo: true
