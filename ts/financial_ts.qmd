@@ -3,7 +3,7 @@ title: "Financial Time Series Models(ARCH/GARCH)"
 format: html
 ---
 
-# Finance time series model(KOSPI,S&P500,krw/usd)
+# Finance time series model(KOSPI)
 
 ```{r,warning=FALSE,message=FALSE}
 #| echo: true
@@ -56,18 +56,23 @@ usr<- usr %>%
 
 # KRW/USD rate
 
+Start_date <- as.Date("1996-12-11")
+
 kr <- read.csv("../data/fx rate/kor.csv")
+
 kr <- kr %>%
   transmute(
     Date = as.Date(observation_date),
-    krw  = DEXKOUS,    
-    usd  = 1 / DEXKOUS  
+    krw  = DEXKOUS,
+    usd  = 1 / DEXKOUS
   ) %>%
   filter(!is.na(Date)) %>%
   arrange(Date) %>%
   distinct(Date, .keep_all = TRUE) %>%
-  complete(Date = seq(min(Date), max(Date), by = "day")) %>%
-
+  # drop any rows before 1996-12-11 (optional but usually desired)
+  filter(Date >= Start_date) %>%
+  # create a complete daily sequence starting from 1996-12-11
+  complete(Date = seq(Start_date, max(Date), by = "day")) %>%
   fill(krw, usd, .direction = "down")
 
 
@@ -189,6 +194,7 @@ sp_plot <- plot_ly(
 sp_plot
 ```
 
+### log return plot of KOSPI return
 
 ```{r,warning=FALSE,message=FALSE}
 #| echo: true
@@ -236,7 +242,7 @@ kospi_acf/kospi_pacf
 From the plots, KOSPI Index data performs well in terms of autocorrelation by applying log transformation, However there are still some lag points showing autocorrelation. 
 
 
-### ACF & PACF plot for log return of KOSPI Index
+### ACF & PACF plot for absolute log return of KOSPI Index
 
 ```{r,warning=FALSE,message=FALSE}
 #| echo: true
@@ -250,7 +256,7 @@ ggAcf(abs(kospi_return), lag.max = 30) +
   theme_minimal()
 ```
 
-### ACF & PACF plot for log return of KOSPI Index
+### ACF & PACF plot for squared log return of KOSPI Index
 
 ```{r,warning=FALSE,message=FALSE}
 #| echo: true
@@ -263,9 +269,7 @@ ggAcf(kospi_return^2, lag.max = 30) +
   theme_minimal()
 ```
 
-:::
-
-Two plots for applying absolute value and squaring to KOSPI Index shows significant autocorrelation throughout multiple lags, compare to log return. This implies that the returns are not independently and identically distributed, and gives evidence for need to apply conditional variance models such as ARCH or GARCH to capture the underlying time-varying volatility structure.
+### ARCH effect test
 
 ```{r,warning=FALSE,message=FALSE}
 #| echo: true
@@ -281,8 +285,14 @@ arch_test_result <- ArchTest(kospi_return, lags = 1, demean = TRUE)
 print(arch_test_result)
 ```
 
+p-vlaue is smaller than 0.05(default criterion), indicating rejecting null hypothesis, concluding strong evidence for the presence of ARCH(1) effects in the data.
 
-# Modeling 1: ARIMA +GARCH model
+:::
+
+Two plots for applying absolute value and squaring to KOSPI Index shows significant autocorrelation throughout multiple lags, compare to log return. This implies that the returns are not independently and identically distributed, and gives evidence for need to apply conditional variance models such as ARCH or GARCH to capture the underlying time-varying volatility structure.
+
+
+# Modeling Approach 1: ARIMA +GARCH model
 
 ::: panel-tabset
 
@@ -360,6 +370,7 @@ highlight_output(output)
 ```
 
 From the table, arima(0,1,1) has lowest BIC and arima(5,1,5) has lowest AIC and AICc
+
 ### auto.arima() model
 
 ```{r,warning=FALSE,message=FALSE}
@@ -369,6 +380,9 @@ From the table, arima(0,1,1) has lowest BIC and arima(5,1,5) has lowest AIC and 
 auto_model1<-auto.arima(log(kospi_ts))
 auto_model1
 ```
+
+
+### Model diagnostics 
 
 ```{r,warning=FALSE,message=FALSE}
 #| echo: true
@@ -414,7 +428,7 @@ From model diagnostic for three potential models, diagnostics are not satisfacto
 
 ::: panel-tabset
 
-### Residual ACF &PACF plot
+### Residual ACF &PACF plot of KOSPI Index model 
 
 ```{r,warning=FALSE,message=FALSE}
 #| echo: true
@@ -431,6 +445,8 @@ kospi_res_pacf <- ggPacf(res_arima1,lag.max = 30)+ggtitle("PACF Plot of ARIMA(0,
 kospi_res_acf/kospi_res_pacf
 
 ```
+
+### Squared Residual ACF &PACF plot of KOSPI Index model 
 
 ```{r,warning=FALSE,message=FALSE}
 #| echo: true
@@ -559,7 +575,7 @@ invisible(predict(final.fit1, n.ahead = 100, plot = TRUE))
 
 ::: panel-tabset
 
-# ACF & PACF plot
+### ACF & PACF plot
 
 ```{r,warning=FALSE,message=FALSE}
 #| echo: true
@@ -655,7 +671,7 @@ garch_model3 <- garchFit(~ garch(1,1), data = kospi_return, trace = FALSE)
 summary(garch_model3)
 ```
 
-### Model fit
+### Final Model fit
 
 ```{r,warning=FALSE,message=FALSE}
 #| echo: true
@@ -675,7 +691,13 @@ garch_res1 <- residuals(garch.fit2)
 checkresiduals(garch_res1)
 ```
 
-### forecasting
+:::
+
+# Forecast & Volatility 
+
+::: panel-tabset 
+
+### Forecasting plot(365 days)
 
 ```{r,warning=FALSE,message=FALSE}
 #| echo: true
@@ -729,6 +751,9 @@ plot_ly() %>%
          hovermode = "x unified")
 ```
 
+
+### Volatility plot 
+
 ```{r,warning=FALSE,message=FALSE}
 #| echo: true
 #| code-fold: true
@@ -757,12 +782,582 @@ p <- ggplot(data2, aes(x = Date, y = Volatility)) +
 ggplotly(p)
 ```
 
+:::
+
+
+# Financial time series moodel(KRW/USD spot rate)
+
+::: panel-tabset 
+
+### time series plot for KRW/USD exchange spot
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+p_us <- plot_ly(kr, x = ~Date, y = ~krw, type = "scatter", mode = "lines",
+                 name = "USD per KRW") %>%
+  layout(title = "USD per KRW",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "USD per KRW"))
+p_us
+```
+
+### reutrn of KRW/USD exchange spot plot
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+kr_ts <- ts(kr$krw,
+          start = decimal_date(as.Date("1996-12-11")),
+          frequency = 252)
+
+#kr_return<- diff(kr_ts)
+kr_return <- diff(kr_ts) / kr_ts[-length(kr_ts)]
+autoplot(kr_return) +
+  ggtitle("Daily Returns of KRW/USD exchange spot") +
+  xlab("Time") +
+  ylab("Log Return")
+```
+
+:::
+
+
+# ACF & PACF plot
+
+::: panel-tabset
+
+
+### ACF & PACF plot for  return of KRW/USD exchange spot
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+library(patchwork)
+kr_acf <- ggAcf(kr_return,lag.max = 30)+ggtitle("ACF Plot of KRW/USD exchange spot") + theme_bw() +
+  geom_segment(lineend = "butt", color = "orange") +
+    geom_hline(yintercept = 0, color = "orange") 
+kr_pacf <- ggPacf(kr_return,lag.max = 30)+ggtitle("PACF Plot of KRW/USD exchange spot") + theme_bw()+
+  geom_segment(lineend = "butt", color = "skyblue") +
+    geom_hline(yintercept = 0, color = "skyblue") 
+
+kr_acf/kr_pacf
+
+```
+
+From the plots, KOSPI Index data performs well in terms of autocorrelation by applying log transformation, However there are still some lag points showing autocorrelation. 
+
+
+### ACF & PACF plot for  return of KRW/USD exchange spot
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+
+ggAcf(abs(kr_return), lag.max = 30) +
+  ggtitle("ACF plot of Absolute 
+          KRW/USD exchange spot") +
+  xlab("Lag") +
+  ylab("Autocorrelation") +
+  theme_minimal()
+```
+
+### ACF & PACF plot for return of KRW/USD exchange spot
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+ggAcf(kr_return^2, lag.max = 30) +
+  ggtitle("ACF plot of Squared
+          KRW/USD exchange spot ") +
+  xlab("Lag") +
+  ylab("Autocorrelation") +
+  theme_minimal()
+```
+
+
+### ARCH effect test
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+# Load required package
+library(FinTS)
+
+# Perform ARCH LM Test on Bitcoin returns
+arch_test_result <- ArchTest(kr_return, lags = 1, demean = TRUE)
+
+# Print results
+print(arch_test_result)
+```
+
+p-vlaue is smaller than 0.05(default criterion), indicating rejecting null hypothesis, concluding strong evidence for the presence of ARCH(1) effects in the data.
+
+
+:::
+
+Two plots for applying absolute value and squaring to KOSPI Index shows significant autocorrelation throughout multiple lags, compare to log return. This implies that the returns are not independently and identically distributed, and gives evidence for need to apply conditional variance models such as ARCH or GARCH to capture the underlying time-varying volatility structure.
+
+
+# Modeling 1: ARIMA +GARCH model
+
+::: panel-tabset
+
+### model selection
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+library(patchwork)
+
+kr_acf <- ggAcf(kr_ts,lag.max = 30)+ggtitle("ACF Plot of KRW/USD exchange spot ") + theme_bw() +
+  geom_segment(lineend = "butt", color = "orange") +
+    geom_hline(yintercept = 0, color = "orange") 
+kr_pacf <- ggPacf(kr_ts,lag.max = 30)+ggtitle("PACF Plot of KRW/USD exchange spot") + theme_bw()+
+  geom_segment(lineend = "butt", color = "skyblue") +
+    geom_hline(yintercept = 0, color = "skyblue") 
+
+kr_acf/kr_pacf
+```
+
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+kr_acf_log <- ggAcf(kr_return,lag.max = 30)+ggtitle("ACF Plot of KRW/USD exchange spot") + theme_bw() +
+  geom_segment(lineend = "butt", color = "orange") +
+    geom_hline(yintercept = 0, color = "orange") 
+kr_pacf_log <- ggPacf(kr_return,lag.max = 30)+ggtitle("PACF Plot of KRW/USD exchange spot") + theme_bw()+
+  geom_segment(lineend = "butt", color = "skyblue") +
+    geom_hline(yintercept = 0, color = "skyblue") 
+
+kr_acf_log/kr_pacf_log
+```
+
+### Manual search
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+ARIMA.c <- function(p_min, p_max, q_min, q_max, data) {
+  results <- matrix(NA, nrow = 0, ncol = 6)
+  colnames(results) <- c("p", "d", "q", "AIC", "BIC", "AICc")
+
+  for (p in p_min:p_max) {
+    for (q in q_min:q_max) {
+      for (d in 0:2) {
+        if ((p + d + q) <= 12) {  # Complexity constraint
+          fit <- Arima(data, order = c(p, d, q))
+          metrics <- c(p, d, q, fit$aic, fit$bic, fit$aicc)
+          results <- rbind(results, metrics)
+        }
+      }
+    }
+  }
+
+  # Convert to data frame
+  results_df <- as.data.frame(results)
+  colnames(results_df) <- c("p", "d", "q", "AIC", "BIC", "AICc")
+  return(results_df)
+}
+
+highlight_output = function(output, type="ARIMA") {
+    highlight_row <- c(which.min(output$AIC), which.min(output$BIC), which.min(output$AICc))
+    knitr::kable(output, align = 'c', caption = paste("Comparison of", type, "Models")) %>%
+    kable_styling(full_width = FALSE, position = "center") %>%
+    row_spec(highlight_row, bold = TRUE, background = "#FFFF99")  # Highlight row in yellow
+}
+
+output <- ARIMA.c(p_min = 0, p_max = 4, q_min = 0, q_max = 4, data = kr_ts)
+highlight_output(output)
+
+```
+
+From the table, arima(0,1,1) has lowest BIC and arima(5,1,5) has lowest AIC and AICc
+
+### auto.arima() model
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+auto_model2<-auto.arima(kr_ts)
+auto_model2
+```
+
+### Model diagnostics 
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+kr_data<- kr_ts
+kr_output1 <- capture.output(sarima(kr_data, 4, 1, 4))
+start_line <- grep("Coefficients", kr_output1) 
+end_line <- length(kr_output1)  
+cat(kr_output1[start_line:end_line], sep = "\n")
+```
+
+
+From model diagnostic for three potential models, diagnostics are not satisfactory, to evaluate which model to choose, model AIC,BIC and coefficient's significance. In this sense, i would use ARIMA(4,1,4) model since it has lowest BIC value. Also auto.arima() suggested ARIMA(0,1,0)(0,0,1)[252], however as seen in EDA and univariate section, using ARIMA(4,1,4) is more appropriate. 
+
+
+:::
+
+
+# Residual fit
+
+::: panel-tabset
+
+### Residual ACF &PACF plot for KRW/USD exchange spot model 
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+
+arima_fit2 <- Arima(kr_ts, order = c(4,1,4), include.drift = TRUE)
+res_arima2<- residuals(arima_fit2)
+
+kr_res_acf <- ggAcf(res_arima2,lag.max = 30)+ggtitle("ACF Plot of ARIMA(0,1,1) Residuals") 
+
+kr_res_pacf <- ggPacf(res_arima2,lag.max = 30)+ggtitle("PACF Plot of ARIMA(0,1,1) Residuals") 
+
+kr_res_acf/kr_res_pacf
+
+```
+
+
+### Squared Residual ACF &PACF plot for KRW/USD exchange spot model 
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+kr_res_acf <- ggAcf(res_arima2^2,lag.max = 30)+ggtitle("ACF Plot of ARIMA(0,1,1) Residuals") 
+
+kr_res_pacf <- ggPacf(res_arima2^2,lag.max = 30)+ggtitle("PACF Plot of ARIMA(0,1,1) Residuals") 
+
+kr_res_acf/kr_res_pacf
+```
+
+
+### Manual search
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+library(tseries)
+library(knitr)
+library(kableExtra)
+
+# Initialize list to store models and track p, q
+models <- list()
+pq_combinations <- data.frame(p = integer(), q = integer(), AIC = numeric())
+cc <- 1
+
+for (p in 0:4) {
+  for (q in 0:4) {
+    fit <- tryCatch(
+      garch(res_arima2, order = c(q, p), trace = FALSE),
+      error = function(e) NULL
+    )
+    if (!is.null(fit)) {
+      models[[cc]] <- fit
+      pq_combinations <- rbind(
+        pq_combinations,
+        data.frame(p = p, q = q, AIC = AIC(fit))
+      )
+      cc <- cc + 1
+    }
+  }
+}
+
+# Round AIC for presentation
+pq_combinations$AIC <- round(pq_combinations$AIC, 3)
+
+# Identify row with minimum AIC
+highlight_row <- which.min(pq_combinations$AIC)
+
+# Create formatted table
+pq_combinations %>%
+  kable(
+    caption = "AIC Comparison for GARCH(p, q) Models",
+    col.names = c("ARCH Order (p)", "GARCH Order (q)", "AIC"),
+    align = c("c", "c", "c"),
+    booktabs = TRUE
+  ) %>%
+  kable_styling(
+    full_width = FALSE,
+    position = "center",
+    bootstrap_options = c("striped", "hover", "condensed")
+  ) %>%
+  row_spec(highlight_row, bold = TRUE, background = "#FFF59D")
+```
+
+### Model selection 
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+cat("\nSummary for GARCH(2,1):\n")
+garch_model <- garchFit(~ garch(2, 1), data = res_arima2, trace = FALSE)
+summary(garch_model)
+```
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+cat("\nSummary for GARCH(1,1):\n")
+garch_model <- garchFit(~ garch(1,1), data = res_arima2, trace = FALSE)
+summary(garch_model)
+```
+
+By manual search to find optimal p,q value, GARCH(2,1) had lowest AIC. However when fitting a model with this parameter, alpha2 are not significant with large p value, trying other close by AIC values could be appropriate. After testing more model, all the coefficient for GARCH(1,1) model are significant and very close AIC value to lowest value, So further modeling GARCH(1,1) will be used. 
+
+### Final Model fit
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+#| 
+arima_fit2 <- Arima(kr_ts, order = c(4,1,4), include.drift = TRUE)
+arima_res2<-residuals(arima_fit2)
+final.fit2<- garchFit(~ garch(1, 1), data = arima_res2, trace = FALSE)
+summary(final.fit2)
+```
+
+### Forecast
+
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+fc <-predict(final.fit2, n.ahead = 100)
+invisible(predict(final.fit2, n.ahead = 100, plot = TRUE))
+```
+
+:::
+
+
+# Modeling Approach 2: GARCH model
+
+::: panel-tabset
+
+### ACF & PACF plot of KRW/USD exchange spot
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+kr_acf_log <- ggAcf(kr_return,lag.max = 30)+ggtitle("ACF Plot of KRW/USD exchange spot") + theme_bw() +
+  geom_segment(lineend = "butt", color = "orange") +
+    geom_hline(yintercept = 0, color = "orange") 
+kr_pacf_log <- ggPacf(kr_return,lag.max = 30)+ggtitle("PACF Plot of KRW/USD exchange spot") + theme_bw()+
+  geom_segment(lineend = "butt", color = "skyblue") +
+    geom_hline(yintercept = 0, color = "skyblue") 
+
+kr_acf_log/kr_pacf_log
+
+```
+
+### Manual Search
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+
+# Initialize model storage
+models <- list()
+results <- data.frame(p = integer(), q = integer(), AIC = numeric())
+cc <- 1
+
+# Grid search for GARCH(p, q), where p = ARCH order, q = GARCH order
+for (p in 1:5) {
+  for (q in 1:5) {
+    fit <- tryCatch(
+      garch(kr_return, order = c(q, p), trace = FALSE),
+      error = function(e) NULL
+    )
+    if (!is.null(fit)) {
+      models[[cc]] <- fit
+      results <- rbind(results, data.frame(p = p, q = q, AIC = AIC(fit)))
+      cc <- cc + 1
+    }
+  }
+}
+
+# Round AIC values for readability
+results$AIC <- round(results$AIC, 3)
+
+# Identify the model with the lowest AIC
+highlight_row <- which.min(results$AIC)
+
+# Display formatted table
+results %>%
+  kable(
+    caption = "AIC Comparison for GARCH(p, q) Models",
+    col.names = c("ARCH Order (p)", "GARCH Order (q)", "AIC"),
+    align = c("c", "c", "c"),
+    booktabs = TRUE
+  ) %>%
+  kable_styling(
+    full_width = FALSE,
+    position = "center",
+    bootstrap_options = c("striped", "hover", "condensed")
+  ) %>%
+  row_spec(highlight_row, bold = TRUE, background = "#FFF59D")
+
+```
+
+
+### Model selection
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+garch_model2 <- garchFit(~ garch(1,3), data = kr_return, trace = FALSE)
+summary(garch_model2)
+```
+
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+garch_model3 <- garchFit(~ garch(1,1), data = kr_return, trace = FALSE)
+summary(garch_model3)
+```
+
+### Final Model fit
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+
+garch.fit2 <- garch(kr_return, order = c(1,1), trace = FALSE) 
+summary(garch.fit2)
+```
+
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+garch_res2 <- residuals(garch.fit2)
+checkresiduals(garch_res2)
+```
+
+:::
+
+# Forecast & Volatility
+
+::: panel-tabset
+
+### Forecasting plot(365days)
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+library(fGarch)
+library(lubridate)
+library(dplyr)
+library(plotly)
+
+
+gfit <- garchFit(~ garch(1,1),
+                 data = as.numeric(kr_return),
+                 trace = FALSE)
+
+# Forecast 365 days
+h <- 365
+pf <- predict(gfit, n.ahead = h)
+rhat <- as.numeric(pf$meanForecast)
+
+# Convert differences to prices (simple addition)
+last_price <- tail(as.numeric(kr$krw), 1)
+price_fc <- numeric(h)
+price_fc[1] <- last_price + rhat[1]
+for (i in 2:h) {
+  price_fc[i] <- price_fc[i-1] + rhat[i]
+}
+
+# Create future dates
+last_date <- tail(kr$Date, 1) 
+future_dates <- seq(last_date + 1, by = "day", length.out = h)
+
+# Historical data
+hist_df <- data.frame(
+  Date = kr$Date,  
+  Price = as.numeric(kr$krw)
+)
+
+# Forecast data
+fc_df <- data.frame(Date = future_dates, Price = price_fc)
+
+# Show recent 10 years
+recent_window <- 3650
+hist_df_recent <- tail(hist_df, recent_window)
+
+# Plot
+plot_ly() %>%
+  add_lines(data = hist_df_recent, x = ~Date, y = ~Price, 
+            name = "Historical", line = list(color="blue", width=2)) %>%
+  add_lines(data = fc_df, x = ~Date, y = ~Price, 
+            name = "GARCH Forecast", 
+            line = list(color="red", dash="dash", width=3)) %>%
+  layout(title = "KRW/USD Exchange Rate — GARCH(1,1) 365-Day Forecast",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "KRW per USD"),
+         hovermode = "x unified")
+```
+
+### Volatility plot
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+library(fGarch)
+set.seed(1)
+
+
+garch.fit11 <- garchFit(~ garch(1,1), data = kr_return, trace = FALSE)
+ht <- garch.fit11@h.t
+
+
+data2 <- data.frame(Date = kr$Date[-1][1:length(ht)], Volatility = ht)
 
 
 
+p <- ggplot(data2, aes(x = Date, y = Volatility)) +
+  geom_line(color = 'orange') +
+  labs(
+    title = "Conditional Variance from GARCH(1,1) Model",
+    x = "Date",
+    y = "Conditional Variance"
+  ) +
+  theme_minimal()
+ggplotly(p)
+```
 
-
-
+:::
 
 
 
