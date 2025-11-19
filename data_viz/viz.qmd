@@ -338,8 +338,9 @@ Yield curve spreads show frequent inversions in both countries—most notably be
 
 :::
 
-::: panel-tabset
+# Korea - USA trade 
 
+::: panel-tabset
 
 ### USA - Korea trade: export & imports(USD) bar plot
 
@@ -450,7 +451,7 @@ The scatter plot illustrates the relationship between South Korea’s exports an
 :::
 
 
-
+# Equity data
 
 ::: panel-tabset
 

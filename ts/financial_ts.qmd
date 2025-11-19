@@ -3,3 +3,771 @@ title: "Financial Time Series Models(ARCH/GARCH)"
 format: html
 ---
 
+# Finance time series model(KOSPI,S&P500,krw/usd)
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+library(fGarch)
+library(tidyverse)
+library(ggplot2)
+library(forecast)
+library(astsa) 
+library(xts)
+library(zoo)
+library(tseries)
+library(fpp2)
+library(fma)
+library(lubridate)
+library(tidyverse)
+library(TSstudio)
+library(tidyquant)
+library(plotly)
+library(readr)
+library(kableExtra)
+library(knitr)
+library(patchwork)
+library(vars)
+library(here)
+library(tsibble)
+library(dplyr)
+# calling data
+
+#KR base rate
+bok<- read.csv("../data/interest/bok.csv")%>%
+  rename(Date = date)
+bok$Date<- as.Date(bok$Date)
+bok <- bok %>%
+  mutate(Date = floor_date(Date, unit = "quarter")) %>%
+  group_by(Date) %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE)), .groups = "drop")
+
+
+# FED rate 
+
+usr<- read.csv("../data/interest/us_rate.csv")%>%
+  rename(Date = observation_date,rate = DFF)
+usr$Date<- as.Date(usr$Date)
+usr<- usr %>%
+  mutate(Date = floor_date(Date, unit = "quarter")) %>%
+  group_by(Date) %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE)), .groups = "drop")
+
+# KRW/USD rate
+
+kr <- read.csv("../data/fx rate/kor.csv")
+kr <- kr %>%
+  transmute(
+    Date = as.Date(observation_date),
+    krw  = DEXKOUS,    
+    usd  = 1 / DEXKOUS  
+  ) %>%
+  filter(!is.na(Date)) %>%
+  arrange(Date) %>%
+  distinct(Date, .keep_all = TRUE) %>%
+  complete(Date = seq(min(Date), max(Date), by = "day")) %>%
+
+  fill(krw, usd, .direction = "down")
+
+
+# USD index 
+
+usd <- read_csv("../data/fx rate/usd_index.csv", show_col_types = FALSE)
+usd <- usd %>%
+  transmute(
+    Date = as.Date(Date),
+    usd_index = Close
+  ) %>%
+  filter(!is.na(Date)) %>%
+  arrange(Date) %>%
+  distinct(Date, .keep_all = TRUE) %>%
+  complete(Date = seq(min(Date), max(Date), by = "day")) %>%
+  fill(usd_index, .direction = "down")
+
+
+# Yield data 
+
+us_yield  <- read.csv(here("data/yield", "us_yield.csv"))
+kor_yield   <- read.csv(here("data/yield", "kor_yield.csv"))
+
+
+us_yield$Date  <- as.Date(us_yield$Date)
+kor_yield$Date <- as.Date(kor_yield$Date)
+
+colnames(us_yield)[colnames(us_yield)  == "X3Y"]  <- "US_3Y"
+colnames(us_yield)[colnames(us_yield)  == "X10Y"] <- "US_10Y"
+colnames(kor_yield)[colnames(kor_yield) == "X3Y"]  <- "KR_3Y"
+colnames(kor_yield)[colnames(kor_yield) == "X10Y"] <- "KR_10Y"
+
+us_yield  <- us_yield[,  c("Date", "US_3Y", "US_10Y")]
+kor_yield <- kor_yield[, c("Date", "KR_3Y", "KR_10Y")]
+
+us_yield  <- us_yield  %>% arrange(Date) %>% fill(US_3Y, US_10Y, .direction = "down")
+kor_yield <- kor_yield %>% arrange(Date) %>% fill(KR_3Y, KR_10Y, .direction = "down")
+
+
+df <- merge(us_yield, kor_yield, by = "Date")
+
+df$US_3m10  <- df$US_3Y - df$US_10Y
+df$KR_3m10  <- df$KR_3Y - df$KR_10Y
+df$US_KR_3Y <- df$US_3Y - df$KR_3Y
+df$US_KR_10Y<- df$US_10Y - df$KR_10Y
+
+
+# S&P500 data
+sp500 <- read_csv("../data/stock/sp500.csv")
+
+
+# KOSPI data
+kospi <- read_csv("../data/stock/kospi.csv")
+kospi$Date <- as.Date(kospi$Date)
+
+# VIX data(added for the modeling)
+vix<- read_csv("../data/stock/vix.csv")%>%
+  mutate(Date = ymd(Date)) %>%
+  arrange(Date) %>%
+  fill(vix, .direction = "down")
+
+
+# extract spreads from df
+
+us_spreads <- df %>%
+  dplyr::select(Date, US_3m10) %>%
+  rename(us_spread = US_3m10) %>%
+  mutate(Date = as.Date(Date))
+
+kor_spreads <- df %>%
+  dplyr::select(Date, KR_3m10) %>%
+  rename(kr_spread = KR_3m10) %>%
+  mutate(Date = as.Date(Date))
+
+us_kr_spreads_3y <- df %>%
+  dplyr::select(Date, US_KR_3Y) %>%
+  mutate(Date = as.Date(Date))
+
+us_kr_spreads_10y <- df %>%
+  dplyr::select(Date, US_KR_10Y) %>%
+  mutate(Date = as.Date(Date))
+
+
+```
+
+
+# Time series plot
+
+::: panel-tabset 
+
+
+### candelstick plot for KOSPI Index 
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+sp_plot <- plot_ly(
+  data = kospi,
+  x = ~Date,
+  type = "candlestick",
+  open = ~Open,
+  high = ~High,
+  low = ~Low,
+  close = ~Close,
+  name = "KOSPI Index"
+) %>%
+  layout(
+    title = "KOSPI Index",
+    yaxis = list(title = "KOSPI index"),
+    xaxis = list(
+      title = "Date",
+      tickformat = "%Y",
+      dtick = "M12"
+    ),
+    legend = list(x = 0.1, y = 0.9)
+  )
+
+sp_plot
+```
+
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+kospi_close<- kospi$Close
+kospi_ts <- ts(kospi_close,
+          start = decimal_date(as.Date("1996-12-11")),
+          frequency = 252)
+
+kospi_return<- diff(log(kospi_ts))
+
+autoplot(kospi_return) +
+  ggtitle("Daily Log Returns of KOSPI Index") +
+  xlab("Time") +
+  ylab("Log Return")
+```
+
+:::
+
+
+# ACF & PACF plot
+
+::: panel-tabset
+
+
+### ACF & PACF plot for log return of KOSPI Index
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+library(patchwork)
+kospi_acf <- ggAcf(kospi_return,lag.max = 30)+ggtitle("ACF Plot of KOSPI Index") + theme_bw() +
+  geom_segment(lineend = "butt", color = "orange") +
+    geom_hline(yintercept = 0, color = "orange") 
+kospi_pacf <- ggPacf(kospi_return,lag.max = 30)+ggtitle("PACF Plot of KOSPI Index") + theme_bw()+
+  geom_segment(lineend = "butt", color = "skyblue") +
+    geom_hline(yintercept = 0, color = "skyblue") 
+
+kospi_acf/kospi_pacf
+
+```
+
+From the plots, KOSPI Index data performs well in terms of autocorrelation by applying log transformation, However there are still some lag points showing autocorrelation. 
+
+
+### ACF & PACF plot for log return of KOSPI Index
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+
+ggAcf(abs(kospi_return), lag.max = 30) +
+  ggtitle("ACF plot of Absolute KOSPI Index Returns") +
+  xlab("Lag") +
+  ylab("Autocorrelation") +
+  theme_minimal()
+```
+
+### ACF & PACF plot for log return of KOSPI Index
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+ggAcf(kospi_return^2, lag.max = 30) +
+  ggtitle("ACF plot of Squared KOSPI Index Returns") +
+  xlab("Lag") +
+  ylab("Autocorrelation") +
+  theme_minimal()
+```
+
+:::
+
+Two plots for applying absolute value and squaring to KOSPI Index shows significant autocorrelation throughout multiple lags, compare to log return. This implies that the returns are not independently and identically distributed, and gives evidence for need to apply conditional variance models such as ARCH or GARCH to capture the underlying time-varying volatility structure.
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+# Load required package
+library(FinTS)
+
+# Perform ARCH LM Test on Bitcoin returns
+arch_test_result <- ArchTest(kospi_return, lags = 1, demean = TRUE)
+
+# Print results
+print(arch_test_result)
+```
+
+
+# Modeling 1: ARIMA +GARCH model
+
+::: panel-tabset
+
+### model selection
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+library(patchwork)
+
+kospi_acf <- ggAcf(kospi_ts,lag.max = 30)+ggtitle("ACF Plot of KOSPI Index") + theme_bw() +
+  geom_segment(lineend = "butt", color = "orange") +
+    geom_hline(yintercept = 0, color = "orange") 
+kospi_pacf <- ggPacf(kospi_ts,lag.max = 30)+ggtitle("PACF Plot of KOSPI Index") + theme_bw()+
+  geom_segment(lineend = "butt", color = "skyblue") +
+    geom_hline(yintercept = 0, color = "skyblue") 
+
+kospi_acf/kospi_pacf
+```
+
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+kospi_acf_log <- ggAcf(kospi_return,lag.max = 30)+ggtitle("ACF Plot of KOSPI Index") + theme_bw() +
+  geom_segment(lineend = "butt", color = "orange") +
+    geom_hline(yintercept = 0, color = "orange") 
+kospi_pacf_log <- ggPacf(kospi_return,lag.max = 30)+ggtitle("PACF Plot of KOSPI Index") + theme_bw()+
+  geom_segment(lineend = "butt", color = "skyblue") +
+    geom_hline(yintercept = 0, color = "skyblue") 
+
+kospi_acf_log/kospi_pacf_log
+```
+
+### Manual search
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+ARIMA.c <- function(p_min, p_max, q_min, q_max, data) {
+  results <- matrix(NA, nrow = 0, ncol = 6)
+  colnames(results) <- c("p", "d", "q", "AIC", "BIC", "AICc")
+
+  for (p in p_min:p_max) {
+    for (q in q_min:q_max) {
+      for (d in 0:2) {
+        if ((p + d + q) <= 12) {  # Complexity constraint
+          fit <- Arima(data, order = c(p, d, q))
+          metrics <- c(p, d, q, fit$aic, fit$bic, fit$aicc)
+          results <- rbind(results, metrics)
+        }
+      }
+    }
+  }
+
+  # Convert to data frame
+  results_df <- as.data.frame(results)
+  colnames(results_df) <- c("p", "d", "q", "AIC", "BIC", "AICc")
+  return(results_df)
+}
+
+highlight_output = function(output, type="ARIMA") {
+    highlight_row <- c(which.min(output$AIC), which.min(output$BIC), which.min(output$AICc))
+    knitr::kable(output, align = 'c', caption = paste("Comparison of", type, "Models")) %>%
+    kable_styling(full_width = FALSE, position = "center") %>%
+    row_spec(highlight_row, bold = TRUE, background = "#FFFF99")  # Highlight row in yellow
+}
+
+output <- ARIMA.c(p_min = 0, p_max = 5, q_min = 0, q_max = 5, data = log(kospi_ts))
+highlight_output(output)
+
+```
+
+From the table, arima(0,1,1) has lowest BIC and arima(5,1,5) has lowest AIC and AICc
+### auto.arima() model
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+auto_model1<-auto.arima(log(kospi_ts))
+auto_model1
+```
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+kospi_data<-log(kospi_ts)
+kospi_output1 <- capture.output(sarima(kospi_data, 0, 1, 1))
+start_line <- grep("Coefficients", kospi_output1) 
+end_line <- length(kospi_output1)  
+cat(kospi_output1[start_line:end_line], sep = "\n")
+```
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+kospi_output2 <- capture.output(sarima(kospi_data, 5, 1, 5))
+start_line <- grep("Coefficients", kospi_output2) 
+end_line <- length(kospi_output2)  
+cat(kospi_output2[start_line:end_line], sep = "\n")
+
+```
+
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+kospi_output3 <- capture.output(sarima(kospi_data, 2, 1, 2))
+start_line <- grep("Coefficients", kospi_output3) 
+end_line <- length(kospi_output3)  
+cat(kospi_output3[start_line:end_line], sep = "\n")
+```
+
+From model diagnostic for three potential models, diagnostics are not satisfactory, to evaluate which model to choose, model AIC,BIC and coefficient's significance. In this sense, i would use ARIMA(0,1,1) model since it has lowest BIC value. 
+
+
+:::
+
+
+# residual fit
+
+
+::: panel-tabset
+
+### Residual ACF &PACF plot
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+
+arima_fit1 <- Arima(log(kospi_ts), order = c(0,1,1), include.drift = TRUE)
+res_arima1<- residuals(arima_fit1)
+
+kospi_res_acf <- ggAcf(res_arima1,lag.max = 30)+ggtitle("ACF Plot of ARIMA(0,1,1) Residuals") 
+
+kospi_res_pacf <- ggPacf(res_arima1,lag.max = 30)+ggtitle("PACF Plot of ARIMA(0,1,1) Residuals") 
+
+kospi_res_acf/kospi_res_pacf
+
+```
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+arima_fit1 <- Arima(log(kospi_ts), order = c(0,1,1), include.drift = TRUE)
+res_arima1<- residuals(arima_fit1)
+
+kospi_res_acf <- ggAcf(res_arima1^2,lag.max = 30)+ggtitle("ACF Plot of ARIMA(0,1,1) Residuals") 
+
+kospi_res_pacf <- ggPacf(res_arima1^2,lag.max = 30)+ggtitle("PACF Plot of ARIMA(0,1,1) Residuals") 
+
+kospi_res_acf/kospi_res_pacf
+```
+
+
+
+### Manual search
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+library(tseries)
+library(knitr)
+library(kableExtra)
+
+# Initialize list to store models and track p, q
+models <- list()
+pq_combinations <- data.frame(p = integer(), q = integer(), AIC = numeric())
+cc <- 1
+
+# Fit GARCH(p, q) models for p = 1:7 and q = 1:7
+for (p in 0:5) {
+  for (q in 0:5) {
+    fit <- tryCatch(
+      garch(res_arima1, order = c(q, p), trace = FALSE),
+      error = function(e) NULL
+    )
+    if (!is.null(fit)) {
+      models[[cc]] <- fit
+      pq_combinations <- rbind(
+        pq_combinations,
+        data.frame(p = p, q = q, AIC = AIC(fit))
+      )
+      cc <- cc + 1
+    }
+  }
+}
+
+# Round AIC for presentation
+pq_combinations$AIC <- round(pq_combinations$AIC, 3)
+
+# Identify row with minimum AIC
+highlight_row <- which.min(pq_combinations$AIC)
+
+# Create formatted table
+pq_combinations %>%
+  kable(
+    caption = "AIC Comparison for GARCH(p, q) Models",
+    col.names = c("ARCH Order (p)", "GARCH Order (q)", "AIC"),
+    align = c("c", "c", "c"),
+    booktabs = TRUE
+  ) %>%
+  kable_styling(
+    full_width = FALSE,
+    position = "center",
+    bootstrap_options = c("striped", "hover", "condensed")
+  ) %>%
+  row_spec(highlight_row, bold = TRUE, background = "#FFF59D")
+```
+
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+cat("\nSummary for GARCH(2,3):\n")
+garch_model <- garchFit(~ garch(2, 3), data = res_arima1, trace = FALSE)
+summary(garch_model)
+```
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+cat("\nSummary for GARCH(2,1):\n")
+garch_model <- garchFit(~ garch(2, 1), data = res_arima1, trace = FALSE)
+summary(garch_model)
+```
+
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+cat("\nSummary for GARCH(1,1):\n")
+garch_model <- garchFit(~ garch(1,1), data = res_arima1, trace = FALSE)
+summary(garch_model)
+```
+By manual search to find optimal p,q value, GARCH(2,3) had lowest AIC. However when fitting a model with this parameter, beta 1 and beta 2 are not significant with large p value, trying other close by AIC values could be appropriate. After testing two more models, all the coefficient for GARCH(1,1) model are significant and very close AIC value to lowest value, So further modeling GARCH(1,1) will be used. 
+
+### Final model 
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+#| 
+arima_fit1 <- Arima(log(kospi_ts), order = c(0,1,1), include.drift = TRUE)
+arima_res1<-residuals(arima_fit1)
+final.fit1<- garchFit(~ garch(1, 1), data = arima_res1, trace = FALSE)
+summary(final.fit1)
+```
+### forecasting
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+fc <-predict(final.fit1, n.ahead = 100)
+invisible(predict(final.fit1, n.ahead = 100, plot = TRUE))
+```
+
+:::
+
+
+# Modeling Approach 2: GARCH model
+
+::: panel-tabset
+
+# ACF & PACF plot
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+kospi_acf_log <- ggAcf(kospi_return,lag.max = 30)+ggtitle("ACF Plot of KOSPI Index") + theme_bw() +
+  geom_segment(lineend = "butt", color = "orange") +
+    geom_hline(yintercept = 0, color = "orange") 
+kospi_pacf_log <- ggPacf(kospi_return,lag.max = 30)+ggtitle("PACF Plot of KOSPI Index") + theme_bw()+
+  geom_segment(lineend = "butt", color = "skyblue") +
+    geom_hline(yintercept = 0, color = "skyblue") 
+
+kospi_acf_log/kospi_pacf_log
+
+```
+
+### Manual Search
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+
+# Initialize model storage
+models <- list()
+results <- data.frame(p = integer(), q = integer(), AIC = numeric())
+cc <- 1
+
+# Grid search for GARCH(p, q), where p = ARCH order, q = GARCH order
+for (p in 1:5) {
+  for (q in 1:5) {
+    fit <- tryCatch(
+      garch(kospi_return, order = c(q, p), trace = FALSE),
+      error = function(e) NULL
+    )
+    if (!is.null(fit)) {
+      models[[cc]] <- fit
+      results <- rbind(results, data.frame(p = p, q = q, AIC = AIC(fit)))
+      cc <- cc + 1
+    }
+  }
+}
+
+# Round AIC values for readability
+results$AIC <- round(results$AIC, 3)
+
+# Identify the model with the lowest AIC
+highlight_row <- which.min(results$AIC)
+
+# Display formatted table
+results %>%
+  kable(
+    caption = "AIC Comparison for GARCH(p, q) Models",
+    col.names = c("ARCH Order (p)", "GARCH Order (q)", "AIC"),
+    align = c("c", "c", "c"),
+    booktabs = TRUE
+  ) %>%
+  kable_styling(
+    full_width = FALSE,
+    position = "center",
+    bootstrap_options = c("striped", "hover", "condensed")
+  ) %>%
+  row_spec(highlight_row, bold = TRUE, background = "#FFF59D")
+
+```
+
+
+### Model selection
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+garch_model1 <- garchFit(~ garch(4,3), data = kospi_return, trace = FALSE)
+summary(garch_model1)
+```
+
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+garch_model2 <- garchFit(~ garch(2,1), data = kospi_return, trace = FALSE)
+summary(garch_model2)
+```
+
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+garch_model3 <- garchFit(~ garch(1,1), data = kospi_return, trace = FALSE)
+summary(garch_model3)
+```
+
+### Model fit
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+
+garch.fit2 <- garch(kospi_return, order = c(1,1), trace = FALSE) 
+summary(garch.fit2)
+```
+
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+garch_res1 <- residuals(garch.fit2)
+checkresiduals(garch_res1)
+```
+
+### forecasting
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+
+library(fGarch)
+library(lubridate)
+library(dplyr)
+library(plotly)
+
+
+gfit <- garchFit(~ garch(1,1),
+                 data = as.numeric(kospi_return),
+                 trace = FALSE)
+
+h <- 365
+pf <- predict(gfit, n.ahead = h)
+rhat <- as.numeric(pf$meanForecast)
+
+
+last_price <- tail(as.numeric(kospi_close), 1)
+price_fc <- numeric(h)
+price_fc[1] <- last_price * exp(rhat[1])
+for (i in 2:h) {
+  price_fc[i] <- price_fc[i-1] * exp(rhat[i])
+}
+
+last_date <- tail(kospi$Date, 1) 
+future_dates <- seq(last_date + 1, by = "day", length.out = h)
+
+hist_df <- data.frame(
+  Date = kospi$Date,  
+  Price = as.numeric(kospi_close)
+)
+
+fc_df <- data.frame(Date = future_dates, Price = price_fc)
+
+recent_window <- 3650 # recent 10 years
+hist_df_recent <- tail(hist_df, recent_window)
+
+plot_ly() %>%
+  add_lines(data = hist_df_recent, x = ~Date, y = ~Price, 
+            name = "Historical", line = list(color="blue")) %>%
+  add_lines(data = fc_df, x = ~Date, y = ~Price, 
+            name = "GARCH Forecast", 
+            line = list(color="red", dash="dash")) %>%
+  layout(title = "KOSPI — GARCH(1,1) 365-Day Price Forecast",
+         xaxis = list(title = "Date"),
+         yaxis = list(title = "Index"),
+         hovermode = "x unified")
+```
+
+```{r,warning=FALSE,message=FALSE}
+#| echo: true
+#| code-fold: true
+
+library(fGarch)
+set.seed(1)
+
+garch.fit11 <- garchFit(~ garch(1,1), data = kospi_return, trace = FALSE)
+ht <- garch.fit11@h.t
+
+
+data2 <- data.frame(Date = kospi$Date[-1][1:length(ht)], Volatility = ht)
+
+
+
+p <- ggplot(data2, aes(x = Date, y = Volatility)) +
+  geom_line(color = 'orange') +
+  labs(
+    title = "Conditional Variance from GARCH(1,1) Model",
+    x = "Date",
+    y = "Conditional Variance"
+  ) +
+  theme_minimal()
+
+# Convert to plotly
+ggplotly(p)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
