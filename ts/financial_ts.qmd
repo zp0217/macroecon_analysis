@@ -693,11 +693,9 @@ checkresiduals(garch_res1)
 
 :::
 
-# Forecast & Volatility 
 
-::: panel-tabset 
 
-### Forecasting plot(365 days)
+# Forecasting plot(365 days) : KOSPI Index
 
 ```{r,warning=FALSE,message=FALSE}
 #| echo: true
@@ -752,7 +750,7 @@ plot_ly() %>%
 ```
 
 
-### Volatility plot 
+# Volatility plot : KOSPI Index
 
 ```{r,warning=FALSE,message=FALSE}
 #| echo: true
@@ -1265,11 +1263,8 @@ checkresiduals(garch_res2)
 
 :::
 
-# Forecast & Volatility
 
-::: panel-tabset
-
-### Forecasting plot(365days)
+# Forecasting plot(365days): KRW/USD exchange spot 
 
 ```{r,warning=FALSE,message=FALSE}
 #| echo: true
@@ -1328,7 +1323,7 @@ plot_ly() %>%
          hovermode = "x unified")
 ```
 
-### Volatility plot
+# Volatility plot : KRW/USD exchange spot 
 
 ```{r,warning=FALSE,message=FALSE}
 #| echo: true
