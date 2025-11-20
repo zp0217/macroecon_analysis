@@ -345,15 +345,22 @@ kospi_acf/kospi_pacf
 #| echo: true
 #| code-fold: true
 
-kospi_acf_log <- ggAcf(kospi_return,lag.max = 30)+ggtitle("ACF Plot of KOSPI Index") + theme_bw() +
+kospi_acf_log <- ggAcf(kospi_return,lag.max = 30)+ggtitle("ACF Plot of KOSPI Index return") + theme_bw() +
   geom_segment(lineend = "butt", color = "orange") +
     geom_hline(yintercept = 0, color = "orange") 
-kospi_pacf_log <- ggPacf(kospi_return,lag.max = 30)+ggtitle("PACF Plot of KOSPI Index") + theme_bw()+
+kospi_pacf_log <- ggPacf(kospi_return,lag.max = 30)+ggtitle("PACF Plot of KOSPI Index return") + theme_bw()+
   geom_segment(lineend = "butt", color = "skyblue") +
     geom_hline(yintercept = 0, color = "skyblue") 
 
 kospi_acf_log/kospi_pacf_log
 ```
+
+The ACF plot shows significant autocorrelation across several lags. In the PACF plot, there is a strong autocorrelation at lag 1, followed by a sharp drop, indicating almost no autocorrelation after lag 1. These plots suggest the presence of dependencies between past and current price movements, and that the series is stationary.
+
+For the KOSPI index returns, the ACF and PACF plots show that most lags lie within the significance bounds; however, there are a few spikes at certain lags, such as lag 5. For manual model selection, a search range from 0 to 5 therefore seems appropriate.
+
+Both plots exhibit similar patterns, indicating that conditional heteroskedasticity is present in the return series. Thus, applying models from the ARCH/GARCH family is appropriate.
+
 
 ### Manual search
 
@@ -407,6 +414,7 @@ auto_model1<-auto.arima(log(kospi_ts))
 auto_model1
 ```
 
+auto.arima() suggest ARIMA(2,1,2) model
 
 ### Model diagnostics 
 
@@ -443,8 +451,9 @@ end_line <- length(kospi_output3)
 cat(kospi_output3[start_line:end_line], sep = "\n")
 ```
 
-From model diagnostic for three potential models, diagnostics are not satisfactory, to evaluate which model to choose, model AIC,BIC and coefficient's significance. In this sense, i would use ARIMA(0,1,1) model since it has lowest BIC value. 
+Three models were tested: ARIMA(0,1,1), ARIMA(5,1,5), and ARIMA(2,1,2).
 
+From the model diagnostics for these three candidates, the results are not fully satisfactory. Therefore, to decide which model to use, I compare their AIC and BIC values as well as the significance of the coefficients. Based on these criteria, I choose the ARIMA(0,1,1) model, since it has the lowest BIC value.
 
 :::
 
@@ -454,7 +463,7 @@ From model diagnostic for three potential models, diagnostics are not satisfacto
 
 ::: panel-tabset
 
-### Residual ACF &PACF plot of KOSPI Index model 
+### Residual ACF & PACF plot and Squared Residual ACF &PACF plot of KOSPI Index model 
 
 ```{r,warning=FALSE,message=FALSE}
 #| echo: true
@@ -472,7 +481,6 @@ kospi_res_acf/kospi_res_pacf
 
 ```
 
-### Squared Residual ACF &PACF plot of KOSPI Index model 
 
 ```{r,warning=FALSE,message=FALSE}
 #| echo: true
@@ -488,6 +496,8 @@ kospi_res_pacf <- ggPacf(res_arima1^2,lag.max = 30)+ggtitle("PACF Plot of ARIMA(
 kospi_res_acf/kospi_res_pacf
 ```
 
+
+From the ACF and PACF plots of the residuals and squared residuals for the ARIMA(0,1,1) model, the ACF of the squared residuals shows noticeable spikes up to lag 5, followed by a gradual decline. This suggests the presence of an ARCH effect, indicating time-varying volatility in the data. Based on these plots, an appropriate range for manual model search is p,q both in 0:5 range.
 
 
 ### Manual search
@@ -572,7 +582,9 @@ cat("\nSummary for GARCH(1,1):\n")
 garch_model <- garchFit(~ garch(1,1), data = res_arima1, trace = FALSE)
 summary(garch_model)
 ```
-By manual search to find optimal p,q value, GARCH(2,3) had lowest AIC. However when fitting a model with this parameter, beta 1 and beta 2 are not significant with large p value, trying other close by AIC values could be appropriate. After testing two more models, all the coefficient for GARCH(1,1) model are significant and very close AIC value to lowest value, So further modeling GARCH(1,1) will be used. 
+
+By manually searching over possible p,qp, qp,q values, the GARCH(2,3) model was found to have the lowest AIC. However, when fitting this model, beta1 and beta2​ were not statistically significant, with large p-values, suggesting that trying models with slightly higher AIC values could be appropriate. After testing two additional models, all coefficients in the GARCH(1,1) model were found to be significant, and its AIC was very close to the minimum observed. Therefore, the GARCH(1,1) model is selected for further analysis.
+
 
 ### Final model 
 
@@ -582,9 +594,13 @@ By manual search to find optimal p,q value, GARCH(2,3) had lowest AIC. However w
 #| 
 arima_fit1 <- Arima(log(kospi_ts), order = c(0,1,1), include.drift = TRUE)
 arima_res1<-residuals(arima_fit1)
-final.fit1<- garchFit(~ garch(1, 1), data = arima_res1, trace = FALSE)
+final.fit1<- garchFit(~ garch(1,1), data = arima_res1, trace = FALSE)
 summary(final.fit1)
+garch_res1 <- residuals(final.fit1)
+checkresiduals(garch_res1)
+
 ```
+
 ### forecasting
 ```{r,warning=FALSE,message=FALSE}
 #| echo: true
@@ -594,10 +610,50 @@ fc <-predict(final.fit1, n.ahead = 100)
 invisible(predict(final.fit1, n.ahead = 100, plot = TRUE))
 ```
 
+
 :::
+
+For the final model, an ARIMA(0,1,1) + GARCH(1,1) specification was used. The model diagnostics provide some insight into its performance. The residual plot shows a reasonably good pattern, with no obvious systematic structure and only a few noticeable spikes. The ACF plot of the residuals indicates that most lags fall within the significance bounds, suggesting that autocorrelation has been largely resolved.
+
+However, the Ljung–Box test yields a very small p-value (0.007), indicating that the model fit is not fully satisfactory and that some dependence may remain in the residuals. Even so, this model is preferred because all of its coefficients are statistically significant, unlike the alternative specifications considered. Therefore, this is taken as the best model among the candidates.
+
+Equation: 
+
+$$
+\phi(B) x_t = \delta + \theta(B) y_t,
+$$
+
+where
+
+$$
+\phi(B) = 1 - B, \qquad
+\theta(B) = 1 + \theta_1 B,
+$$
+
+$$
+y_t = \sigma_t \varepsilon_t, \qquad \varepsilon_t \sim \text{i.i.d. } N(0,1),
+$$
+
+
+$$
+\operatorname{var}(y_t \mid y_{t-1}) = \sigma_t^2 
+= \alpha_0 + \alpha_1 y_{t-1}^2 + \beta_1 \sigma_{t-1}^2.
+$$
+
+$$
+\Delta x_t = 0.0002 + y_t + 0.0571\,y_{t-1},
+$$
+
+$$
+\sigma_t^2 = 1.3026\times 10^{-6}
++ 0.086232\,y_{t-1}^2
++ 0.91126\,\sigma_{t-1}^2.
+$$
 
 
 # Modeling Approach 2: GARCH model
+
+In the previous modeling, the overall model fit was not satisfactory. Therefore, in this section, a different modeling approach is used: directly applying models from the ARCH/GARCH family.
 
 ::: panel-tabset
 
@@ -617,6 +673,8 @@ kospi_pacf_log <- ggPacf(kospi_return,lag.max = 30)+ggtitle("PACF Plot of KOSPI 
 kospi_acf_log/kospi_pacf_log
 
 ```
+
+Based on the ACF and PACF plots, the parameter search range for the manual selection process will be set from 0 to 5 for both p and q.
 
 ### Manual Search
 
@@ -668,6 +726,7 @@ results %>%
 
 ```
 
+Optimal model based on AIC is GARCH(4,2) model.
 
 ### Model selection
 
@@ -675,7 +734,7 @@ results %>%
 #| echo: true
 #| code-fold: true
 
-garch_model1 <- garchFit(~ garch(4,3), data = kospi_return, trace = FALSE)
+garch_model1 <- garchFit(~ garch(4,2), data = kospi_return, trace = FALSE)
 summary(garch_model1)
 ```
 
@@ -697,6 +756,9 @@ garch_model3 <- garchFit(~ garch(1,1), data = kospi_return, trace = FALSE)
 summary(garch_model3)
 ```
 
+When testing the model with the lowest AIC, the overall fit was strong; however, not all coefficients were statistically significant, with some showing large p-values. Therefore, two additional models were considered: one with an AIC value close to the minimum and another specified as GARCH(1,1).Comparing the three models, all coefficients in the GARCH(1,1) model were significant, so this model is selected as the final choice.
+
+
 ### Final Model fit
 
 ```{r,warning=FALSE,message=FALSE}
@@ -717,9 +779,34 @@ garch_res1 <- residuals(garch.fit2)
 checkresiduals(garch_res1)
 ```
 
+From model diagnostics, this model shows similar result for ACF and residual plot compare to other model approach. However, for Ljung-Box test, it has much better p-value, indicating that this model has better model fit compare to other method. 
+
 :::
 
+Equation: 
 
+
+$$
+r_t = \sigma_t \varepsilon_t, \qquad \varepsilon_t \sim \text{i.i.d. } N(0,1),
+$$
+
+$$
+\sigma_t^2 = \alpha_0 + \alpha_1 r_{t-1}^2 + \beta_1 \sigma_{t-1}^2.
+$$
+
+$$
+\alpha_0 = 1.278\times 10^{-6}, \quad
+\alpha_1 = 0.08535, \quad
+\beta_1 = 0.9123,
+$$
+
+
+$$
+\sigma_t^2
+= 1.278\times 10^{-6}
++ 0.08535\, r_{t-1}^2
++ 0.9123\, \sigma_{t-1}^2.
+$$
 
 # Forecasting plot(365 days) : KOSPI Index
 
@@ -1377,7 +1464,6 @@ p <- ggplot(data2, aes(x = Date, y = Volatility)) +
 ggplotly(p)
 ```
 
-:::
 
 
 
