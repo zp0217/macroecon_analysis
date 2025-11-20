@@ -3,7 +3,7 @@ title: "Financial Time Series Models(ARCH/GARCH)"
 format: html
 ---
 
-# Finance time series model(KOSPI)
+# Introduction
 
 The focus of this section is on building financial time series models, specifically for the KOSPI Index and the KRW/USD spot exchange rate. The aim of this project is to examine the influence of the United States on the South Korean economy. More specifically, in this section the goal is to examine how dollar exchange rate risk affects the Korean economy.
 
@@ -167,8 +167,9 @@ us_kr_spreads_10y <- df %>%
 ```
 
 
+# Finance time series model(KOSPI)
 
-# Time series plot
+## Time series plot
 
 ::: panel-tabset 
 
@@ -1330,7 +1331,6 @@ $$
 \beta_1 = 0.940516,
 $$
 
-so
 
 $$
 \sigma_t^2
