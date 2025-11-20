@@ -236,6 +236,11 @@ autoplot(kospi_return) +
 
 :::
 
+As discussed in the univariate and multivariate time series model sections, the log transformation performed well for the KOSPI data, so it was applied to the KOSPI closing prices. The first plot is a candlestick chart of the KOSPI Index, and the second is the log-transformed KOSPI data. It is evident that applying the log transformation reduces variability.
+
+The third plot shows the log returns of the KOSPI Index. In this plot, volatility clustering is clearly observed: for most periods, the values are centered near zero, but in certain periods the series exhibits high volatility before returning to calmer behavior. This suggests that the data are potentially appropriate for modeling with the ARCH/GARCH family of models.
+
+
 
 # ACF & PACF plot
 
