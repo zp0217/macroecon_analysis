@@ -4,11 +4,6 @@ format: html
 jupyter: python3
 ---
 
-
-# Deep learning
-
-
-### package & load data
 ```{python}
 #| echo: true
 #| code-fold: true
@@ -27,57 +22,115 @@ from sklearn.preprocessing import MinMaxScaler
 import time
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from IPython.display import IFrame
 
-# Load data
 spread = pd.read_csv("../data/yield/spread.csv")
 spread = spread[["Date", "US_KR_3Y", "US_KR_10Y"]]
 spread = spread.sort_values("Date").ffill()
 ```
 
-### utility function
+# Multivariate model
+
+### data cleaning
 
 ```{python}
 #| echo: true
 #| code-fold: true
 
+vix = pd.read_csv("../data/stock/vix.csv")
+vix['Date'] = pd.to_datetime(vix['Date'])
+vix = vix.sort_values('Date')
 
-def form_arrays(x, lookback=3, delay=1, step=1, feature_columns=[0], target_columns=[0], 
-                unique=False, verbose=False, predict="scalar"):
+usmi = pd.read_csv("../data/usmi.csv")
+usmi = usmi.rename(columns={'observation_date': 'Date', 'INDPRO': 'usm'})
+usmi['Date'] = pd.to_datetime(usmi['Date'])
+usmi = usmi.sort_values('Date')
 
+kr = pd.read_csv("../data/fx rate/kor.csv")
+kr['Date'] = pd.to_datetime(kr['observation_date'])
+kr = kr.rename(columns={'DEXKOUS': 'krw'})
+kr = kr.sort_values('Date')
+
+trade = pd.read_csv("../data/trade/trade_merged.csv")
+trade['Date'] = pd.to_datetime(trade['Date'])
+trade = trade.sort_values('Date')
+
+trade_exports = trade[['Date', 'export_USD']].copy()
+trade_exports = trade_exports.rename(columns={'export_USD': 'exports'})
+
+vix_monthly_m2 = vix.copy()
+vix_monthly_m2['year_month'] = vix_monthly_m2['Date'].dt.to_period('M')
+vix_monthly_m2 = vix_monthly_m2.groupby('year_month').first().reset_index()
+vix_monthly_m2['Date'] = vix_monthly_m2['year_month'].dt.to_timestamp()
+vix_monthly_m2 = vix_monthly_m2[['Date', 'vix']]
+
+kor_monthly_m2 = kr.copy()
+kor_monthly_m2['year_month'] = kor_monthly_m2['Date'].dt.to_period('M')
+kor_monthly_m2 = kor_monthly_m2.groupby('year_month').first().reset_index()
+kor_monthly_m2['Date'] = kor_monthly_m2['year_month'].dt.to_timestamp()
+kor_monthly_m2 = kor_monthly_m2[['Date', 'krw']]
+
+df4 = trade_exports.copy()
+df4 = df4.merge(usmi, on='Date', how='left')
+df4 = df4.merge(vix_monthly_m2, on='Date', how='left')
+df4 = df4.merge(kor_monthly_m2, on='Date', how='left')
+
+df4 = df4.fillna(method='ffill')
+df4 = df4.dropna()
+
+print(f"Merged data shape: {df4.shape}")
+```
+
+### Utility functions
+```{python}
+#| echo: true
+#| code-fold: true
+
+def form_arrays(
+    x,
+    lookback=3,
+    delay=1,
+    step=1,
+    feature_columns=[0],
+    target_columns=[0],
+    unique=False,
+    verbose=False,
+    predict="scalar"
+):
     i_start = 0
     count = 0
-    
+
     x_out = []
     y_out = []
-    
+
     while i_start + lookback + delay < x.shape[0]:
         i_stop = i_start + lookback
         i_pred = i_stop + delay
-        
+
         if verbose and count < 2:
             print("indice range:", i_start, i_stop, "-->", i_pred)
-        
+
         indices_to_keep = []
         j = i_stop
         while j >= i_start:
             indices_to_keep.append(j)
             j = j - step
-        
+
         xtmp = x[indices_to_keep, :]
         xtmp = xtmp[:, feature_columns]
-        
+
         if predict == "scalar":
             ytmp = x[i_pred, target_columns]
         if predict == "vector":
             ytmp = x[i_stop + 1:i_pred, target_columns]
-        
+
         x_out.append(xtmp)
         y_out.append(ytmp)
-        
+
         if verbose and count < 2:
             print("X:\n", xtmp, "\nY:\n", ytmp)
             print("shape:", xtmp.shape, "-->", ytmp.shape)
-        
+
         if verbose and count < 2:
             fig, ax = plt.subplots()
             ax.plot(x, 'b-')
@@ -86,70 +139,61 @@ def form_arrays(x, lookback=3, delay=1, step=1, feature_columns=[0], target_colu
             if predict == "scalar":
                 ax.plot(i_pred * np.ones(len(target_columns)), ytmp, 'ro')
             elif predict == "vector":
-                ax.plot(i_stop + 1 + np.tile(np.arange(ytmp.shape[0]), (ytmp.shape[1], 1)), 
-                       ytmp.T, 'ro')
+                ax.plot(i_stop + 1 + np.tile(np.arange(ytmp.shape[0]), (ytmp.shape[1], 1)),
+                        ytmp.T, 'ro')
             plt.show()
-        
+
         if unique:
             i_start += lookback
         i_start += 1
         count += 1
-    
+
     return np.array(x_out), np.array(y_out)
 
-def regression_report(yt, ytp, yv, yvp):
 
+def regression_report(yt, ytp, yv, yvp):
     print("---------- Regression report ----------")
     print("TRAINING:")
-    print(" MSE:", mean_squared_error(yt, ytp))
-    print(" MAE:", mean_absolute_error(yt, ytp))
     print(" RMSE:", np.sqrt(mean_squared_error(yt, ytp)))
-    
-    # PARITY PLOT
+
     fig, ax = plt.subplots()
     ax.plot(yt, ytp, 'ro')
     ax.plot(yt, yt, 'b-')
     ax.set(xlabel='y_data', ylabel='y_predicted',
            title='Training data parity plot (line y=x represents a perfect fit)')
     plt.show()
-    
-    # PLOT PART OF THE PREDICTED TIME-SERIES
+
     frac_plot = 1.0
     upper = int(frac_plot * yt.shape[0])
     fig, ax = plt.subplots()
     ax.plot(yt[0:upper], 'b-')
     ax.plot(ytp[0:upper], 'r-', alpha=0.5)
     ax.plot(ytp[0:upper], 'ro', alpha=0.25)
-    ax.set(xlabel='index', ylabel='y(t) (blue=actual & red=prediction)', 
+    ax.set(xlabel='index', ylabel='y(t) (blue=actual & red=prediction)',
            title='Training: Time-series prediction')
     plt.show()
-    
+
     print("VALIDATION:")
-    print(" MSE:", mean_squared_error(yv, yvp))
-    print(" MAE:", mean_absolute_error(yv, yvp))
     print(" RMSE:", np.sqrt(mean_squared_error(yv, yvp)))
-    
-    # PARITY PLOT
+
     fig, ax = plt.subplots()
     ax.plot(yv, yvp, 'ro')
     ax.plot(yv, yv, 'b-')
     ax.set(xlabel='y_data', ylabel='y_predicted',
            title='Validation data parity plot (line y=x represents a perfect fit)')
     plt.show()
-    
-    # PLOT PART OF THE PREDICTED TIME-SERIES
+
     upper = int(frac_plot * yv.shape[0])
     fig, ax = plt.subplots()
     ax.plot(yv[0:upper], 'b-')
     ax.plot(yvp[0:upper], 'r-', alpha=0.5)
     ax.plot(yvp[0:upper], 'ro', alpha=0.25)
-    ax.set(xlabel='index', ylabel='y(t) (blue=actual & red=prediction)', 
+    ax.set(xlabel='index', ylabel='y(t) (blue=actual & red=prediction)',
            title='Validation: Time-series prediction')
     plt.show()
 
 
 def history_plot(history):
-  
     FS = 16
     history_dict = history.history
     loss_values = history_dict["loss"]
@@ -163,189 +207,80 @@ def history_plot(history):
     plt.legend()
     plt.show()
 
+```
+
+### Forecast & modeling function
+```{python}
+#| echo: true
+#| code-fold: true
 
 def forecast(model, last_input, n_steps):
-   
+
     forecast_vals = []
     input_seq = last_input.copy().reshape(1, *last_input.shape)
+
     for _ in range(n_steps):
         pred = model.predict(input_seq, verbose=0)[0, 0]
         forecast_vals.append(pred)
-        next_input = np.append(input_seq[0, 1:], [[pred]], axis=0)
+
+
+        new_timestep = input_seq[0, -1, :].copy()
+        new_timestep[3] = pred
+
+        next_input = np.concatenate([input_seq[0, 1:, :], new_timestep.reshape(1, -1)], axis=0)
         input_seq = next_input.reshape(1, *next_input.shape)
+
     return forecast_vals
 
-```
-
-# forecast plot function
-```{python}
-#| echo: true
-#| code-fold: true
 
 
-def plot_forecast_with_confidence_plotly(results, best_model_name, forecast_orig, y_test, 
-                                         series_name, confidence=0.95):
-   
-    y_test_actual = results[best_model_name]['y_test']
-    y_test_pred = results[best_model_name]['y_pred']
-    test_errors = y_test_actual - y_test_pred
-    std_error = np.std(test_errors)
-    z_score = 1.96  
 
-    forecast_flat = forecast_orig.flatten()
-    upper_bound = forecast_flat + z_score * std_error
-    lower_bound = forecast_flat - z_score * std_error
-    test_indices = list(range(len(y_test_actual)))
-    forecast_indices = list(range(len(y_test_actual), len(y_test_actual) + len(forecast_orig)))
-    
-    fig = go.Figure()
-    
-    fig.add_trace(go.Scatter(
-        x=test_indices,
-        y=y_test_actual,
-        mode='lines',
-        name='Test Actual',
-        line=dict(color='blue', width=2.5),
-        hovertemplate='<b>Actual</b><br>Time: %{x}<br>Value: %{y:.4f}<extra></extra>'
-    ))
-    
-    fig.add_trace(go.Scatter(
-        x=test_indices,
-        y=y_test_pred,
-        mode='lines',
-        name='Test Predicted',
-        line=dict(color='orange', width=2, dash='dot'),
-        opacity=0.8,
-        hovertemplate='<b>Predicted</b><br>Time: %{x}<br>Value: %{y:.4f}<extra></extra>'
-    ))
-    
-    fig.add_trace(go.Scatter(
-        x=forecast_indices,
-        y=upper_bound,
-        mode='lines',
-        name='95% CI Upper',
-        line=dict(width=0),
-        showlegend=False,
-        hoverinfo='skip'
-    ))
-    
-    fig.add_trace(go.Scatter(
-        x=forecast_indices,
-        y=lower_bound,
-        mode='lines',
-        name='95% Confidence',
-        line=dict(width=0),
-        fillcolor='lightgreen',
-        fill='tonexty',
-        # CI hover fixed: use flat text array + %{text}
-        text=upper_bound,
-        hovertemplate='<b>95% CI</b><br>Upper: %{text:.4f}<br>Lower: %{y:.4f}<extra></extra>'
-    ))
-    
-    fig.add_trace(go.Scatter(
-        x=forecast_indices,
-        y=forecast_flat,
-        mode='lines+markers',
-        name='Forecast',
-        line=dict(color='seagreen', width=3),
-        marker=dict(size=8, symbol='diamond', line=dict(width=1, color='white')),
-        hovertemplate='<b>Forecast</b><br>Time: %{x}<br>Value: %{y:.4f}<extra></extra>'
-    ))
-    
-    fig.add_vline(
-        x=len(y_test_actual) - 0.5,
-        line_dash="dash",
-        line_color="gray",
-        line_width=2,
-        annotation_text="← Test | Forecast →",
-        annotation_position="top",
-        annotation_font_size=12,
-        annotation_font_color="gray"
-    )
-  
-    # Layout
-    fig.update_layout(
-        title=dict(
-            text=f'<b>{series_name}</b><br><sub>{best_model_name} - 30-Step Ahead Forecast</sub>',
-            x=0.5,
-            xanchor='center',
-            font=dict(size=18, color='darkslategray')
-        ),
-        xaxis=dict(
-            title='Time Steps',
-            showgrid=True,
-            gridwidth=1,
-            gridcolor='lightgray'
-        ),
-        yaxis=dict(
-            title='Yield Spread',
-            showgrid=True,
-            gridwidth=1,
-            gridcolor='lightgray'
-        ),
-        hovermode='x unified',
-        template='plotly_white',
-        width=1400,
-        height=600,
-        showlegend=True,
-        legend=dict(
-            yanchor="top",
-            y=0.99,
-            xanchor="right",
-            x=0.99,
-            bgcolor="white",
-            bordercolor="darkslategray",
-            borderwidth=2,
-            font=dict(size=11)
-        ),
-        plot_bgcolor='whitesmoke',
-        margin=dict(l=60, r=60, t=100, b=60)
-    )
-    
-    fig.show()
-```
+def prepare_data(df, lookback=60, train_split=0.7, val_split=0.2):
 
-# Train/val/test split & Model function
+    feature_cols = ['vix', 'usm', 'krw', 'exports']
+    data = df[feature_cols].values
 
-```{python}
-#| echo: true
-#| code-fold: true
+    scalers = {}
+    data_scaled = np.zeros_like(data)
 
-def prepare_data(series, lookback=60, train_split=0.7, val_split=0.2):
-    """Prepare data using professor's form_arrays function"""
-    data = series.values.reshape(-1, 1)
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    data_scaled = scaler.fit_transform(data)
-    
+    for i, col in enumerate(feature_cols):
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        data_scaled[:, i] = scaler.fit_transform(data[:, i].reshape(-1, 1)).flatten()
+        scalers[col] = scaler
+
     X, y = form_arrays(
-        data_scaled, lookback=lookback, delay=1, step=1,
-        feature_columns=[0], target_columns=[0],
-        unique=False, verbose=False, predict="scalar"
+        data_scaled,
+        lookback=lookback,
+        delay=1,
+        step=1,
+        feature_columns=[0, 1, 2, 3],
+        target_columns=[3],
+        unique=False,
+        verbose=False,
+        predict="scalar"
     )
-    
+
     print(f"Total samples: {len(X)}")
     print(f"X shape: {X.shape}, y shape: {y.shape}")
-    
+
     n_train = int(len(X) * train_split)
     n_val = int(len(X) * val_split)
-    
+
     X_train = X[:n_train]
     y_train = y[:n_train]
     X_val = X[n_train:n_train + n_val]
     y_val = y[n_train:n_train + n_val]
     X_test = X[n_train + n_val:]
     y_test = y[n_train + n_val:]
-    
+
     print(f"Train: {len(X_train)}, Val: {len(X_val)}, Test: {len(X_test)}")
-    
-    return X_train, y_train, X_val, y_val, X_test, y_test, scaler
+
+    return X_train, y_train, X_val, y_val, X_test, y_test, scalers
 
 
-
-def build_rnn_model(lookback, units=[128, 64, 32], dropout=0.3, lr=0.0005):
-
+def build_rnn_model(lookback, n_features, units=[128, 64, 32], dropout=0.3, lr=0.0005):
     model = Sequential([
-        SimpleRNN(units[0], return_sequences=True, input_shape=(lookback, 1)),
+        SimpleRNN(units[0], return_sequences=True, input_shape=(lookback, n_features)),
         Dropout(dropout),
         SimpleRNN(units[1], return_sequences=True),
         Dropout(dropout),
@@ -357,10 +292,9 @@ def build_rnn_model(lookback, units=[128, 64, 32], dropout=0.3, lr=0.0005):
     return model
 
 
-def build_lstm_model(lookback, units=[128, 64, 32], dropout=0.3, lr=0.0005):
-
+def build_lstm_model(lookback, n_features, units=[128, 64, 32], dropout=0.3, lr=0.0005):
     model = Sequential([
-        LSTM(units[0], return_sequences=True, input_shape=(lookback, 1)),
+        LSTM(units[0], return_sequences=True, input_shape=(lookback, n_features)),
         Dropout(dropout),
         LSTM(units[1], return_sequences=True),
         Dropout(dropout),
@@ -372,9 +306,9 @@ def build_lstm_model(lookback, units=[128, 64, 32], dropout=0.3, lr=0.0005):
     return model
 
 
-def build_gru_model(lookback, units=[128, 64, 32], dropout=0.3, lr=0.0005):
+def build_gru_model(lookback, n_features, units=[128, 64, 32], dropout=0.3, lr=0.0005):
     model = Sequential([
-        GRU(units[0], return_sequences=True, input_shape=(lookback, 1)),
+        GRU(units[0], return_sequences=True, input_shape=(lookback, n_features)),
         Dropout(dropout),
         GRU(units[1], return_sequences=True),
         Dropout(dropout),
@@ -386,364 +320,417 @@ def build_gru_model(lookback, units=[128, 64, 32], dropout=0.3, lr=0.0005):
     return model
 
 
-def train_model(model, X_train, y_train, X_val, y_val, epochs=200, batch_size=16, model_name='Model'):
+def train_model(model, X_train, y_train, X_val, y_val,
+                epochs=200, batch_size=16, model_name='Model'):
     callbacks = [
-        EarlyStopping(monitor='val_loss', patience=25, restore_best_weights=True, verbose=0),
-        ReduceLROnPlateau(monitor='val_loss', factor=0.3, patience=8, min_lr=1e-8, verbose=0)
+        EarlyStopping(monitor='val_loss', patience=25,
+                      restore_best_weights=True, verbose=0),
+        ReduceLROnPlateau(monitor='val_loss', factor=0.3,
+                          patience=8, min_lr=1e-8, verbose=0)
     ]
-    
+
     print(f"\n{'='*50}")
     print(f"Training {model_name}...")
     print(f"Parameters: {model.count_params():,}")
     print(f"{'='*50}")
-    
+
     start_time = time.time()
-    
+
     history = model.fit(
-        X_train, y_train, validation_data=(X_val, y_val),
-        epochs=epochs, batch_size=batch_size, callbacks=callbacks, verbose=0
+        X_train, y_train,
+        validation_data=(X_val, y_val),
+        epochs=epochs,
+        batch_size=batch_size,
+        callbacks=callbacks,
+        verbose=0
     )
-    
+
     training_time = time.time() - start_time
-    
+
     final_train_loss = history.history['loss'][-1]
     final_val_loss = history.history['val_loss'][-1]
     best_epoch = np.argmin(history.history['val_loss']) + 1
-    
-    print(f"✓ Training completed in {training_time:.2f}s")
+
+    print(f" Training completed in {training_time:.2f}s")
     print(f"  Epochs trained: {len(history.history['loss'])}")
     print(f"  Best epoch: {best_epoch}")
     print(f"  Final train loss: {final_train_loss:.6f}")
     print(f"  Final val loss: {final_val_loss:.6f}")
-    
+
     return history, training_time
 
 
-def evaluate_model(model, X_train, y_train, X_val, y_val, X_test, y_test, 
-                   scaler, model_name='Model'):
+def evaluate_model(model, X_train, y_train, X_val, y_val, X_test, y_test,
+                   scalers, model_name='Model'):
 
     y_train_pred = model.predict(X_train, verbose=0).flatten()
     y_val_pred = model.predict(X_val, verbose=0).flatten()
     y_test_pred = model.predict(X_test, verbose=0).flatten()
-    
-    y_train_orig = scaler.inverse_transform(y_train.reshape(-1, 1)).flatten()
-    y_train_pred_orig = scaler.inverse_transform(y_train_pred.reshape(-1, 1)).flatten()
-    y_val_orig = scaler.inverse_transform(y_val.reshape(-1, 1)).flatten()
-    y_val_pred_orig = scaler.inverse_transform(y_val_pred.reshape(-1, 1)).flatten()
-    y_test_orig = scaler.inverse_transform(y_test.reshape(-1, 1)).flatten()
-    y_test_pred_orig = scaler.inverse_transform(y_test_pred.reshape(-1, 1)).flatten()
-    
+
+    export_scaler = scalers['exports']
+
+    y_train_orig = export_scaler.inverse_transform(y_train.reshape(-1, 1)).flatten()
+    y_train_pred_orig = export_scaler.inverse_transform(y_train_pred.reshape(-1, 1)).flatten()
+    y_val_orig = export_scaler.inverse_transform(y_val.reshape(-1, 1)).flatten()
+    y_val_pred_orig = export_scaler.inverse_transform(y_val_pred.reshape(-1, 1)).flatten()
+    y_test_orig = export_scaler.inverse_transform(y_test.reshape(-1, 1)).flatten()
+    y_test_pred_orig = export_scaler.inverse_transform(y_test_pred.reshape(-1, 1)).flatten()
+
     print(f"\n{model_name} Results:")
     regression_report(y_train_orig, y_train_pred_orig, y_val_orig, y_val_pred_orig)
-    
-    test_mae = mean_absolute_error(y_test_orig, y_test_pred_orig)
+
     test_rmse = np.sqrt(mean_squared_error(y_test_orig, y_test_pred_orig))
-    
+
     print(f"\nTEST SET:")
-    print(f" MAE: {test_mae:.6f}")
     print(f" RMSE: {test_rmse:.6f}")
-    
+
     fig, ax = plt.subplots()
     ax.plot(y_test_orig, y_test_pred_orig, 'ro')
     ax.plot(y_test_orig, y_test_orig, 'b-')
     ax.set(xlabel='y_data', ylabel='y_predicted',
            title=f'{model_name} - Test data parity plot')
     plt.show()
-    
+
     fig, ax = plt.subplots()
     ax.plot(y_test_orig, 'b-', label='Actual')
     ax.plot(y_test_pred_orig, 'r-', alpha=0.5, label='Predicted')
     ax.plot(y_test_pred_orig, 'ro', alpha=0.25)
-    ax.set(xlabel='index', ylabel='y(t)', title=f'{model_name} - Test: Time-series prediction')
+    ax.set(xlabel='index', ylabel='y(t)',
+           title=f'{model_name} - Test: Time-series prediction')
     ax.legend()
     plt.show()
-    
-    actual_dir = np.diff(y_test_orig) > 0
-    pred_dir = np.diff(y_test_pred_orig) > 0
-    dir_acc = np.mean(actual_dir == pred_dir) * 100
-    print(f" Directional Accuracy: {dir_acc:.2f}%")
-    
+
     return {
-        'test_mae': test_mae,
         'test_rmse': test_rmse,
-        'directional_accuracy': dir_acc,
         'y_test': y_test_orig,
         'y_pred': y_test_pred_orig
     }
 
 
-def train_single_model(series, model_type, series_name, lookback=60):
-
+def train_single_model(df, model_type, series_name, lookback=60):
     print(f"\n{'#'*60}")
     print(f"# {series_name} - {model_type}")
     print(f"{'#'*60}\n")
-    
-    X_train, y_train, X_val, y_val, X_test, y_test, scaler = prepare_data(
-        series, lookback=lookback
+
+    X_train, y_train, X_val, y_val, X_test, y_test, scalers = prepare_data(
+        df, lookback=lookback
     )
-    
+
+    n_features = X_train.shape[2]  # Should be 4 (vix, usm, krw, exports)
+
     if model_type == 'RNN':
-        model = build_rnn_model(lookback)
+        model = build_rnn_model(lookback, n_features)
     elif model_type == 'LSTM':
-        model = build_lstm_model(lookback)
+        model = build_lstm_model(lookback, n_features)
     elif model_type == 'GRU':
-        model = build_gru_model(lookback)
-    
+        model = build_gru_model(lookback, n_features)
+    else:
+        raise ValueError("model_type must be one of: 'RNN', 'LSTM', 'GRU'")
+
     model.summary()
     history, train_time = train_model(
         model, X_train, y_train, X_val, y_val,
         epochs=200, batch_size=16, model_name=model_type
     )
-    
+
     history_plot(history)
-    
+
     results = evaluate_model(
         model, X_train, y_train, X_val, y_val, X_test, y_test,
-        scaler, model_name=model_type
+        scalers, model_name=model_type
     )
-    
+
     results['model'] = model
     results['history'] = history
     results['train_time'] = train_time
     results['X_test'] = X_test
-    results['scaler'] = scaler
-    
+    results['scalers'] = scalers
+
     return results
 
-```
 
+def generate_forecast(model, X_test, scalers, n_steps=30):
 
-```{python}
-#| echo: true
-#| code-fold: true
+    print(f"Generating {n_steps}-step forecast...")
 
-def generate_forecast(model, X_test, scaler, results, model_name, series_name):
-
-    print(f"\n{'='*50}")
-    print(f"Forecasting with {model_name}")
-    print(f"{'='*50}")
-    
     last_sequence = X_test[-1]
-    forecast_vals = forecast(model, last_sequence, n_steps=30)
-    forecast_orig = scaler.inverse_transform(np.array(forecast_vals).reshape(-1, 1))
-    
-    plot_forecast_with_confidence_plotly(
-        {model_name: results},
-        model_name,
-        forecast_orig,
-        X_test,
-        series_name
-    )
-    
+    forecast_vals = forecast(model, last_sequence, n_steps=n_steps)
+    forecast_orig = scalers['exports'].inverse_transform(np.array(forecast_vals).reshape(-1, 1))
+
     return forecast_orig
+
+
 ```
 
-
-# 3Y Yield Spread (US-KR)
-
-::: panel-tabset
-
-### RNN
+### Forecast plot generating function
 ```{python}
 #| echo: true
 #| code-fold: true
 
-LOOKBACK = 60
-results_3y_rnn = train_single_model(spread['US_KR_3Y'], 'RNN', '3Y Yield Spread', LOOKBACK)
+
+def plot_forecast_exports_plotly(results_dict, best_model_name, forecast_orig,
+                                  df4, lookback=30, confidence=0.95):
+
+    y_test_actual = results_dict['y_test']
+    y_test_pred = results_dict['y_pred']
+
+    test_errors = y_test_actual - y_test_pred
+    std_error = np.std(test_errors)
+    z_score = 1.96 
+
+    forecast_flat = forecast_orig.flatten()
+    upper_bound = forecast_flat + z_score * std_error
+    lower_bound = forecast_flat - z_score * std_error
+
+    total_samples = len(df4) - lookback - 1
+    train_size = int(total_samples * 0.7)
+    val_size = int(total_samples * 0.2)
+    test_size = total_samples - train_size - val_size
+    test_start_idx = lookback + 1 + train_size + val_size
+    test_dates = pd.to_datetime(
+        df4['Date'].iloc[test_start_idx:test_start_idx + len(y_test_actual)]
+    )
+
+    last_test_date = test_dates.iloc[-1]
+
+    forecast_dates = pd.date_range(
+        start=last_test_date + pd.DateOffset(months=1),
+        periods=30,
+        freq='MS'
+    )
+
+    fig = go.Figure()
+
+
+    fig.add_trace(go.Scatter(
+        x=test_dates,
+        y=y_test_actual,
+        mode='lines',
+        name='Test Actual',
+        line=dict(color='steelblue', width=2.5),         
+        hovertemplate='<b>Actual</b><br>Date: %{x|%Y-%m}'
+                      '<br>Value: %{y:,.2f} USD<extra></extra>'
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=test_dates,
+        y=y_test_pred,
+        mode='lines',
+        name='Test Predicted',
+        line=dict(color='darkorange', width=2, dash='dot'),   
+        opacity=0.8,
+        hovertemplate='<b>Predicted</b><br>Date: %{x|%Y-%m}'
+                      '<br>Value: %{y:,.2f} USD<extra></extra>'
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=forecast_dates,
+        y=upper_bound,
+        mode='lines',
+        name='95% CI Upper',
+        line=dict(width=0),
+        showlegend=False,
+        hoverinfo='skip'
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=forecast_dates,
+        y=lower_bound,
+        mode='lines',
+        name='95% Confidence Interval',
+        line=dict(width=0),
+        fill='tonexty',
+        fillcolor='palegreen', 
+        text=upper_bound,
+        hovertemplate='<b>95% CI</b><br>Date: %{x|%Y-%m}'
+                      '<br>Upper: %{text:,.2f}'
+                      '<br>Lower: %{y:,.2f}<extra></extra>'
+    ))
+
+
+    fig.add_trace(go.Scatter(
+        x=forecast_dates,
+        y=forecast_flat,
+        mode='lines+markers',
+        name='Forecast',
+        line=dict(color='seagreen', width=3),   
+        hovertemplate='<b>Forecast</b><br>Date: %{x|%Y-%m}'
+                      '<br>Value: %{y:,.2f} USD<extra></extra>'
+    ))
+
+    fig.update_layout(
+        title=dict(
+            text=(
+                f'<b>South Korea Exports to USA (thousand dollars) '
+                f'- {best_model_name} Model</b>'
+                '<br><sub>12-Month Forecast with 95% Confidence Interval</sub>'
+            ),
+            x=0.5,
+            xanchor='center',
+            font=dict(size=18, color='black', family='Arial Black') 
+        ),
+        xaxis=dict(
+            title='<b>Date</b>',
+            showgrid=True,
+            gridwidth=1,
+            gridcolor='gainsboro',   
+            tickformat='%Y-%m',
+            tickangle=-45,
+            tickfont=dict(size=11)
+        ),
+        yaxis=dict(
+            title='<b>Export Value (USD)</b>',
+            showgrid=True,
+            gridwidth=1,
+            gridcolor='gainsboro',   
+            tickfont=dict(size=11),
+            tickformat=',.0f'
+        ),
+        hovermode='x unified',
+        template='plotly_white',
+        width=1100,
+        height=500,
+        showlegend=True,
+        legend=dict(
+            yanchor="top",
+            y=0.99,
+            xanchor="left",
+            x=0.01,
+            bgcolor='whitesmoke',    
+            bordercolor='dimgray',   
+            borderwidth=1.5,
+            font=dict(size=11)
+        ),
+        plot_bgcolor='whitesmoke',   
+        margin=dict(l=80, r=40, t=100, b=90),
+        shapes=[
+            dict(
+                type="line",
+                x0=last_test_date,
+                x1=last_test_date,
+                y0=0,
+                y1=1,
+                yref='paper',
+                line=dict(color='dimgray', width=2.5, dash="dash"), 
+                opacity=0.7
+            )
+        ],
+        annotations=[
+            dict(
+                x=last_test_date,
+                y=1.05,
+                yref='paper',
+                text="<b>← Historical Test Data | Forecast →</b>",
+                showarrow=False,
+                font=dict(size=12, color='dimgray'),  
+                xanchor='center'
+            )
+        ]
+    )
+
+    fig.show()
+    return fig
+
 ```
+
+# South Korea export to USA(thousand dollars)
+
+::: panel-tabset
+
+### RNN
+
+```{python}
+#| echo: true
+#| code-fold: true
+
+LOOKBACK = 30
+
+
+results_exports_rnn = train_single_model(df4, 'RNN', 'South korea Exports to USA(thousand dollars)', LOOKBACK)
+
+```
+
 
 ### LSTM
 ```{python}
 #| echo: true
 #| code-fold: true
 
+results_exports_lstm = train_single_model(df4, 'LSTM', 'South Korea to USA(thousand dollars)', LOOKBACK)
 
-results_3y_lstm = train_single_model(spread['US_KR_3Y'], 'LSTM', '3Y Yield Spread', LOOKBACK)
+
 ```
 
 ### GRU
+
 ```{python}
 #| echo: true
 #| code-fold: true
 
-results_3y_gru = train_single_model(spread['US_KR_3Y'], 'GRU', '3Y Yield Spread', LOOKBACK)
+results_exports_gru = train_single_model(df4, 'GRU', 'South Korea export to USA(thousand dollars)', LOOKBACK)
 ```
 
-:::
 
-# 3Y Forecast
+### Forecasting & Final model summary
+
 ```{python}
 #| echo: true
 #| code-fold: true
 
 
-comparison_3y = pd.DataFrame({
+comparison_exports = pd.DataFrame({
     'Model': ['RNN', 'LSTM', 'GRU'],
-    'MAE': [results_3y_rnn['test_mae'], results_3y_lstm['test_mae'], results_3y_gru['test_mae']]
+    'Test RMSE': [results_exports_rnn['test_rmse'],
+                  results_exports_lstm['test_rmse'],
+                  results_exports_gru['test_rmse']],
+    'Train Time (s)': [results_exports_rnn['train_time'],
+                       results_exports_lstm['train_time'],
+                       results_exports_gru['train_time']]
 })
 
-best_3y = comparison_3y.loc[comparison_3y['MAE'].idxmin(), 'Model']
-print(f"Best model: {best_3y}")
+best_exports = comparison_exports.loc[comparison_exports['Test RMSE'].idxmin(), 'Model']
+print(f"\nBest model (South Korea Exports): {best_exports}")
 
-if best_3y == 'RNN':
-    forecast_3y = generate_forecast(
-        results_3y_rnn['model'], results_3y_rnn['X_test'], 
-        results_3y_rnn['scaler'], results_3y_rnn, 'RNN', '3Y Yield Spread'
+if best_exports == 'RNN':
+    forecast_exports = generate_forecast(
+        results_exports_rnn['model'],
+        results_exports_rnn['X_test'],
+        results_exports_rnn['scalers'],
+        n_steps=30
     )
-elif best_3y == 'LSTM':
-    forecast_3y = generate_forecast(
-        results_3y_lstm['model'], results_3y_lstm['X_test'], 
-        results_3y_lstm['scaler'], results_3y_lstm, 'LSTM', '3Y Yield Spread'
+    best_results = results_exports_rnn
+elif best_exports == 'LSTM':
+    forecast_exports = generate_forecast(
+        results_exports_lstm['model'],
+        results_exports_lstm['X_test'],
+        results_exports_lstm['scalers'],
+        n_steps=30
     )
+    best_results = results_exports_lstm
 else:
-    forecast_3y = generate_forecast(
-        results_3y_gru['model'], results_3y_gru['X_test'], 
-        results_3y_gru['scaler'], results_3y_gru, 'GRU', '3Y Yield Spread'
+    forecast_exports = generate_forecast(
+        results_exports_gru['model'],
+        results_exports_gru['X_test'],
+        results_exports_gru['scalers'],
+        n_steps=30
     )
-```
-
-# 10Y Yield Spread (US-KR)
-
-::: panel-tabset
-
-### RNN
-```{python}
-#| echo: true
-#| code-fold: true
-
-
-results_10y_rnn = train_single_model(spread['US_KR_10Y'], 'RNN', '10Y Yield Spread', LOOKBACK)
-```
-
-### LSTM
-```{python}
-#| echo: true
-#| code-fold: true
-
-
-results_10y_lstm = train_single_model(spread['US_KR_10Y'], 'LSTM', '10Y Yield Spread', LOOKBACK)
-```
-
-### GRU
-```{python}
-#| echo: true
-#| code-fold: true
-
-
-results_10y_gru = train_single_model(spread['US_KR_10Y'], 'GRU', '10Y Yield Spread', LOOKBACK)
-```
-
-:::
-
-# 10Y Forecast
-```{python}
-#| echo: true
-#| code-fold: true
-
-
-comparison_10y = pd.DataFrame({
-    'Model': ['RNN', 'LSTM', 'GRU'],
-    'MAE': [results_10y_rnn['test_mae'], results_10y_lstm['test_mae'], results_10y_gru['test_mae']]
-})
-
-best_10y = comparison_10y.loc[comparison_10y['MAE'].idxmin(), 'Model']
-print(f"Best model: {best_10y}")
-
-if best_10y == 'RNN':
-    forecast_10y = generate_forecast(
-        results_10y_rnn['model'], results_10y_rnn['X_test'], 
-        results_10y_rnn['scaler'], results_10y_rnn, 'RNN', '10Y Yield Spread'
-    )
-elif best_10y == 'LSTM':
-    forecast_10y = generate_forecast(
-        results_10y_lstm['model'], results_10y_lstm['X_test'], 
-        results_10y_lstm['scaler'], results_10y_lstm, 'LSTM', '10Y Yield Spread'
-    )
-else:
-    forecast_10y = generate_forecast(
-        results_10y_gru['model'], results_10y_gru['X_test'], 
-        results_10y_gru['scaler'], results_10y_gru, 'GRU', '10Y Yield Spread'
-    )
-```
-
-# Summary Comparison
-```{python}
-#| echo: true
-#| code-fold: true
-
-
-print("\n3Y Yield Spread Results:")
-print(comparison_3y.to_string(index=False))
-
-print("\n10Y Yield Spread Results:")
-print(comparison_10y.to_string(index=False))
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Multivariate model
-
-
-```{python}
-#| echo: true
-#| code-fold: true
-
-
-```
-
-
-```{python}
-#| echo: true
-#| code-fold: true
-
-
-
-```
-
-
-
-
-```{python}
-#| echo: true
-#| code-fold: true
-
+    best_results = results_exports_gru
+
+
+print("\n" + "="*60)
+print("South Korea EXPORTS TO USA - FINAL COMPARISON")
+print("="*60)
+print(comparison_exports.to_string(index=False))
+
+
+fig = plot_forecast_exports_plotly(
+    results_dict=best_results,
+    best_model_name=best_exports,
+    forecast_orig=forecast_exports,
+    df4=df4,
+    lookback=LOOKBACK,
+    confidence=0.95
+)
 ```
 
 
@@ -752,5 +739,18 @@ print(comparison_10y.to_string(index=False))
 #| echo: true
 #| code-fold: true
 
+data = {
+    "Model Type": ["Traditional","Deep Learning", "Deep Learning", "Deep Learning"],
+    "Model": ["SARIMAX","RNN", "LSTM","GRU"],
+    "Input Type": ["Multivariate",  "Multivariate", "Multivariate", "Multivariate"],
+    "RMSE": [619185.3,4053650,712233.9,992051]
+}
+rmse_df = pd.DataFrame(data)
+
+# Display the table
+display(rmse_df.style.hide(axis="index"))
+
+
 ```
+
 

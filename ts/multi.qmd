@@ -2000,7 +2000,6 @@ All three models display similar residual patterns, characterized by random fluc
 ### cross-validation
 
 ```{r,message = F, warning = F}
-
 #| echo: true
 #| code-fold: true
 

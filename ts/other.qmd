@@ -3,3 +3,404 @@ title: "Other: Interrupted TS/ARFIMA/Spectral Analysis"
 format: html
 ---
 
+# Interupted Time series
+
+
+```{r,warning=FALSE,message=F}
+#| echo: true
+#| code-fold: true
+
+library(tidyverse)
+library(ggplot2)
+library(forecast)
+library(astsa) 
+library(xts)
+library(tseries)
+library(fpp2)
+library(fma)
+library(lubridate)
+library(TSstudio)
+library(quantmod)
+library(tidyquant)
+library(plotly)
+library(imputeTS)
+library(dplyr)
+library(reshape2)
+library(gridExtra)
+library(zoo)
+library(knitr)
+library(kableExtra)
+library(broom)
+```
+
+### Time series plot with intervention(2008-08-01)
+
+```{r,warning=FALSE,message=F}
+#| echo: true
+#| code-fold: true
+
+Start_date <- as.Date("2005-01-03")
+End_date   <- as.Date("2015-12-31")
+
+kr <- read.csv("../data/fx rate/kor.csv")
+
+kr <- kr %>%
+  transmute(
+    Date = as.Date(observation_date),
+    krw  = DEXKOUS,
+    usd  = 1 / DEXKOUS
+  ) %>%
+  filter(!is.na(Date)) %>%
+  arrange(Date) %>%
+  
+  distinct(Date, .keep_all = TRUE) %>%
+  filter(Date >= Start_date & Date <= End_date) %>%
+  complete(Date = seq(Start_date,End_date, by = "day")) %>%
+  fill(krw, usd, .direction = "down")
+
+kr$Date <- as.Date(kr$Date)
+
+intervention_date <- as.Date("2008-08-01")
+max_y <- max(kr$krw, na.rm = TRUE)
+
+fig <- plot_ly(
+  data = kr,
+  x = ~Date, y = ~krw,
+  name = "KRW-USD exchange spot rate",
+  type = "scatter", mode = "lines",
+  hovertemplate = paste(
+    "Date: %{x|%b %Y}<br>",
+    "KRW-USD exchange spot rate : ₩%{y:,.2f}<extra></extra>"
+  )
+) %>%
+  layout(
+    title = "KRW-USD exchange spot rate with 2008 financial crisis",
+    xaxis = list(title = "Date"),
+    yaxis = list(title = "KRW-USD exchange spot rate", rangemode = "tozero"),
+    shapes = list(
+      list(
+        type = "line",
+        x0 = intervention_date, x1 = intervention_date,
+        y0 = 0, y1 = max_y,
+        line = list(color = "red", dash = "dash", width = 2),
+        xref = "x", yref = "y"
+      )
+    ),
+    annotations = list(
+      list(
+        x = intervention_date,
+        y = max_y * 0.95,
+        text = "2008 Financial crisis",
+        showarrow = TRUE,
+        arrowhead = 2,
+        ax = 0, ay = -40,
+        font = list(size = 12, color = "red")
+      )
+    ),
+    legend = list(orientation = "h", x = 0, y = -0.15)
+  )
+
+fig
+
+```
+
+
+### Interupted Time series data preparation
+
+```{r,warning=FALSE,message=F}
+#| echo: true
+#| code-fold: true
+
+krw <- kr %>%
+  arrange(Date) %>%                         
+  filter(Date >= Start_date) %>%          
+  transmute(
+    Date = Date,
+    Y  = krw,                              
+    Xt = row_number(),                    
+    Zt = if_else(Date < intervention_date,  
+                 0L, 1L),
+    Pt = 0L
+  )
+
+krw$Pt[krw$Date >= intervention_date] <-
+  seq_len(sum(krw$Date >= intervention_date))
+
+intervention_index <- which(krw$Date == intervention_date)
+
+
+one_month_later_date  <- seq(intervention_date, by = "month", length.out = 2)[2]
+one_month_index       <- which(krw$Date == one_month_later_date)
+
+d.temp <- bind_rows(
+  head(krw, 5),
+  krw[(intervention_index - 3):(intervention_index + 3), ],
+  krw[(one_month_index - 3):(one_month_index + 3), ],
+  tail(krw, 5)
+)
+
+d.temp_char <- d.temp %>%
+  mutate(
+    Date = as.character(Date),
+    Y    = round(Y, 2),
+    Xt   = as.character(Xt),
+    Zt   = as.character(Zt),
+    Pt   = as.character(Pt)
+  )
+
+kable(d.temp_char,
+      caption = "KRW-USD exchange spot rate") %>%
+  kable_styling(full_width = FALSE,
+                bootstrap_options = c("striped", "hover", "condensed"))
+
+
+```
+
+### Interupted Times series model fit 
+
+```{r,warning=FALSE,message=F}
+#| echo: true
+#| code-fold: true
+
+
+
+model <- lm(Y ~ Xt + Zt + Pt, data = krw)
+summary(model)
+
+```
+
+### Regression model summary
+
+```{r,warning=FALSE,message=F}
+#| echo: true
+#| code-fold: true
+
+tab_fx <- tidy(model) %>% 
+  mutate(
+    Term = recode(term,
+      "(Intercept)" = "Constant",
+      "Xt"          = "Time",
+      "Zt"          = "Financial Crisis Indicator",
+      "Pt"          = "Time Since Crisis"
+    ),
+    stars = case_when(
+      p.value < 0.001 ~ "***",
+      p.value < 0.01  ~ "**",
+      p.value < 0.05  ~ "*",
+      TRUE            ~ ""
+    ),
+    `Estimate (SE)` = sprintf("%.2f%s (%.2f)", estimate, stars, std.error)
+  ) %>%
+  dplyr::select(Term, `Estimate (SE)`)
+
+kable(
+  tab_fx,
+  caption = "Regression Summary for KRW-USD Exchange Rate (Financial Crisis)"
+) %>%
+  kable_styling(
+    full_width = FALSE,
+    bootstrap_options = c("striped", "hover", "condensed")
+  )
+```
+
+### Interupted time series plot with trend line
+
+```{r,warning=FALSE,message=F}
+#| echo: true
+#| code-fold: true
+
+b0 <- coef(model)[["(Intercept)"]]
+b1 <- coef(model)[["Xt"]]
+b2 <- coef(model)[["Zt"]]
+b3 <- coef(model)[["Pt"]]
+
+krw <- krw %>%
+  mutate(
+    fitted       = fitted(model),
+    trend_pre    = b0 + b1 * Xt,                     
+    trend_post   = b0 + b1 * Xt + b2 * Zt + b3 * Pt  
+  )
+
+y_min <- min(krw$Y, na.rm = TRUE)
+y_max <- max(krw$Y, na.rm = TRUE)
+
+fig <- plot_ly(krw, x = ~Date) %>%
+
+  add_lines(
+    y = ~Y,
+    name = "Observed KRW/USD",
+    mode = "lines",
+    hovertemplate = paste(
+      "Date: %{x|%Y-%m-%d}<br>",
+      "Observed: ₩%{y:,.2f}<extra></extra>"
+    )
+  ) %>%
+ 
+  add_lines(
+    y = ~trend_pre,
+    name = "Pre-intervention trend (extended)",
+    line = list(dash = "dot"),
+    hovertemplate = paste(
+      "Date: %{x|%Y-%m-%d}<br>",
+      "Pre trend (no crisis): ₩%{y:,.2f}<extra></extra>"
+    )
+  ) %>%
+  add_lines(
+    y = ~trend_post,
+    name = "Post-intervention trend",
+    line = list(dash = "solid"),
+    hovertemplate = paste(
+      "Date: %{x|%Y-%m-%d}<br>",
+      "Post trend (with crisis): ₩%{y:,.2f}<extra></extra>"
+    )
+  ) %>%
+  layout(
+    title = "Interrupted time series for KRW-USD Exchange Rate",
+    xaxis = list(title = "Date"),
+    yaxis = list(title = "KRW per USD"),
+    shapes = list(
+      list(
+        type = "line",
+        x0 = intervention_date, x1 = intervention_date,
+        y0 = y_min,             y1 = y_max,
+        line = list(color = "red", dash = "dash", width = 2),
+        xref = "x", yref = "y"
+      )
+    ),
+    annotations = list(
+      list(
+        x = intervention_date,
+        y = y_max,
+        text = "Intervention",
+        showarrow = TRUE,
+        arrowhead = 2,
+        ax = 0, ay = -40,
+        font = list(size = 12, color = "red")
+      )
+    ),
+    legend = list(orientation = "h", x = 0, y = -0.15)
+  )
+
+fig
+```
+
+
+
+
+### predicted and counterfactual trend plot 
+
+```{r,warning=FALSE,message=F}
+#| echo: true
+#| code-fold: true
+
+
+krw$Y_hat <- predict(model, newdata = krw)
+
+datanew <- data.frame(
+  Xt = krw$Xt,
+  Zt = 0,
+  Pt = 0
+)
+krw$Y_counterfactual <- predict(model, newdata = datanew)
+
+intervention_index <- which(krw$Date == intervention_date)
+y_min <- min(krw$Y, krw$Y_hat, krw$Y_counterfactual, na.rm = TRUE)
+y_max <- max(krw$Y, krw$Y_hat, krw$Y_counterfactual, na.rm = TRUE)
+
+```
+
+
+
+```{r,warning=FALSE,message=F}
+#| echo: true
+#| code-fold: true
+
+library(plotly)
+
+fig <- plot_ly()
+
+fig <- fig %>%
+  add_markers(
+    data = krw,
+    x = ~Date, y = ~Y,
+    name = "Observed KRW/USD",
+    marker = list(color = "gray", opacity = 0.5),
+    hovertemplate = paste(
+      "Date: %{x|%Y-%m-%d}<br>",
+      "Observed: ₩%{y:,.2f}<extra></extra>"
+    )
+  )
+
+fig <- fig %>%
+  add_lines(
+    x = krw$Date[1:(intervention_index - 1)],
+    y = krw$Y_hat[1:(intervention_index - 1)],
+    name = "Predicted (Pre-intervention)",
+    line = list(color = "purple"),
+    hovertemplate = paste(
+      "Date: %{x|%Y-%m-%d}<br>",
+      "Predicted (pre): ₩%{y:,.2f}<extra></extra>"
+    )
+  )
+
+fig <- fig %>%
+  add_lines(
+    x = krw$Date[intervention_index:nrow(krw)],
+    y = krw$Y_hat[intervention_index:nrow(krw)],
+    name = "Predicted (Post-intervention)",
+    line = list(color = "skyblue", dash = "solid"),
+    hovertemplate = paste(
+      "Date: %{x|%Y-%m-%d}<br>",
+      "Predicted (post): ₩%{y:,.2f}<extra></extra>"
+    )
+  )
+
+fig <- fig %>%
+  add_lines(
+    x = krw$Date[intervention_index:nrow(krw)],
+    y = krw$Y_counterfactual[intervention_index:nrow(krw)],
+    name = "Counterfactual (No crisis)",
+    line = list(color = "orange", dash = "dash"),
+    hovertemplate = paste(
+      "Date: %{x|%Y-%m-%d}<br>",
+      "Counterfactual: ₩%{y:,.2f}<extra></extra>"
+    )
+  )
+
+fig <- fig %>%
+  layout(
+    title = "KRW-USD Exchange Rate: Predicted vs. Counterfactual(2008 financial crisis)",
+    xaxis = list(title = "Date"),
+    yaxis = list(title = "KRW per USD"),
+    legend = list(x = 0.01, y = 0.99),
+    shapes = list(
+      list(
+        type = "line",
+        x0 = intervention_date, x1 = intervention_date,
+        y0 = y_min, y1 = y_max,
+        line = list(color = "firebrick", dash = "dot"),
+        xref = "x", yref = "y"
+      )
+    ),
+    annotations = list(
+      list(
+        x = intervention_date,
+        y = y_max,
+        text = "Intervention",
+        showarrow = TRUE,
+        arrowhead = 2,
+        ax = 0, ay = -40,
+        font = list(size = 12, color = "firebrick")
+      )
+    )
+  )
+
+fig
+
+```
+
+
+
+
+
+
