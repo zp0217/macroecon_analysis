@@ -1,15 +1,19 @@
 ---
 title: "Untitled"
-format: html
+format:
+  html:
+    code-fold: true   
+execute:
+  warning: false     
+  echo: true          
 ---
+
 
 # Deep learning
 
 
 ### package & load data
 ```{python}
-#| echo: true
-#| code-fold: true
 
 import numpy as np
 import pandas as pd
@@ -26,6 +30,13 @@ import time
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from IPython.display import IFrame
+import tensorflow as tf
+SEED = 10
+
+os.environ["PYTHONHASHSEED"] = str(SEED)
+random.seed(SEED)
+np.random.seed(SEED)
+tf.random.set_seed(SEED)
 
 spread = pd.read_csv("../data/yield/spread.csv")
 spread = spread[["Date", "US_KR_3Y", "US_KR_10Y"]]
