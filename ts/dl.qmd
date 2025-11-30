@@ -1,5 +1,5 @@
 ---
-title: "Untitled"
+title: "Deep learning Time Series"
 format:
   html:
     code-fold: true
@@ -8,7 +8,6 @@ execute:
   echo: true
   kernel: tf-base   
 ---
-
 
 # Deep learning
 
@@ -723,7 +722,6 @@ else:
 #| echo: true
 #| code-fold: true
 
-
 print("\n3Y Yield Spread Results:")
 print(comparison_3y.to_string(index=False))
 
@@ -738,7 +736,7 @@ data = {
     "Model Type": ["Traditional","Traditional","Deep Learning", "Deep Learning", "Deep Learning","Deep Learning", "Deep Learning", "Deep Learning" ],
     "Model": ["ARIMA(3y)","ARIMA(10y)","RNN(3y)", "LSTM(3y)","GRU(3y)", "RNN(10y)","LSTM(10Y)","GRU(10y)"],
     "Input Type": ["Univariate", "Univariate", "Univariate", "Univariate", "Univariate", "Univariate", "Univariate", "Uniivariate"],
-    "RMSE": [0.082926,0.08423856,0.289304,0.525084,0.244251,0.160987, 0.307107,0.307107]
+    "RMSE": [0.082926,0.08423856,results_3y_rnn['test_rmse'],results_3y_lstm['test_rmse'],results_10y_gru['test_rmse'],results_10y_rnn['test_rmse'], results_10y_lstm['test_rmse'],results_10y_gru['test_rmse']]
 }
 
 rmse_df1 = pd.DataFrame(data)
@@ -749,7 +747,7 @@ display(rmse_df1.style.hide(axis="index"))
 
 # Multivariate model
 
-### data cleaning
+### Data cleaning
 
 ```{python}
 #| echo: true
@@ -1453,7 +1451,9 @@ fig = plot_forecast_exports_plotly(
 )
 ```
 
+:::
 
+### model comparison
 
 ```{python}
 #| echo: true
@@ -1463,13 +1463,12 @@ data = {
     "Model Type": ["Traditional","Deep Learning", "Deep Learning", "Deep Learning"],
     "Model": ["SARIMAX","RNN", "LSTM","GRU"],
     "Input Type": ["Multivariate",  "Multivariate", "Multivariate", "Multivariate"],
-    "RMSE": [619185.3,4053650,712233.9,992051]
+    "RMSE": [619185,results_exports_rnn['test_rmse'],results_exports_lstm['test_rmse'],results_exports_gru['test_rmse']]
 }
 rmse_df = pd.DataFrame(data)
 
 # Display the table
 display(rmse_df.style.hide(axis="index"))
-
 
 ```
 
