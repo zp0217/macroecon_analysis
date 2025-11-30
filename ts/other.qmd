@@ -506,11 +506,11 @@ fig <- fig %>%
       )
     ),
     annotations = list(
-      # Start of Crisis
+
       list(
         x = intervention_date,
         y = y_max * 1.02,               
-        text = "Start of Crisis",
+        text = "Financial Crisis",
         showarrow = TRUE,
         arrowhead = 2,
         arrowsize = 1,                  
@@ -518,7 +518,6 @@ fig <- fig %>%
         ax = -20, ay = -40,                
         font = list(size = 11, color = "red")
       ),
-      # Delayed Effect
       list(
         x = delayed_effect_date,
         y = y_max * 0.99,               

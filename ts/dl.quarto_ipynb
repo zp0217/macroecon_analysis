@@ -18,13 +18,12 @@
         "\n",
         "\n",
         "\n",
-        "\n",
         "# Introduction\n",
         "\n",
         "\n",
         "### package & load data\n"
       ],
-      "id": "27b22a1f"
+      "id": "2a46335a"
     },
     {
       "cell_type": "code",
@@ -54,7 +53,7 @@
         "spread = spread[[\"Date\", \"US_KR_3Y\", \"US_KR_10Y\"]]\n",
         "spread = spread.sort_values(\"Date\").ffill()"
       ],
-      "id": "93793e4f",
+      "id": "3dc4d9b8",
       "execution_count": null,
       "outputs": []
     },
@@ -64,7 +63,7 @@
       "source": [
         "### utility function\n"
       ],
-      "id": "fba05a27"
+      "id": "da7f1f96"
     },
     {
       "cell_type": "code",
@@ -209,7 +208,7 @@
         "        input_seq = next_input.reshape(1, *next_input.shape)\n",
         "    return forecast_vals"
       ],
-      "id": "205fca97",
+      "id": "bb1a60f9",
       "execution_count": null,
       "outputs": []
     },
@@ -219,7 +218,7 @@
       "source": [
         "### forecast plot function\n"
       ],
-      "id": "8112ec8e"
+      "id": "e4d9f250"
     },
     {
       "cell_type": "code",
@@ -381,7 +380,7 @@
         "\n",
         "    fig.show()"
       ],
-      "id": "8f64d978",
+      "id": "7e6f3877",
       "execution_count": null,
       "outputs": []
     },
@@ -391,7 +390,7 @@
       "source": [
         "### Train/val/test split & Model function\n"
       ],
-      "id": "f57183b0"
+      "id": "2064bae4"
     },
     {
       "cell_type": "code",
@@ -630,7 +629,7 @@
         "\n",
         "    return forecast_orig"
       ],
-      "id": "7b98d68e",
+      "id": "0e1db5ea",
       "execution_count": null,
       "outputs": []
     },
@@ -644,7 +643,7 @@
         "\n",
         "### RNN\n"
       ],
-      "id": "dfaaa14e"
+      "id": "2c1fe9b4"
     },
     {
       "cell_type": "code",
@@ -656,7 +655,7 @@
         "LOOKBACK = 60\n",
         "results_3y_rnn = train_single_model(spread['US_KR_3Y'], 'RNN', '3Y Yield Spread', LOOKBACK)"
       ],
-      "id": "56cc9974",
+      "id": "54922961",
       "execution_count": null,
       "outputs": []
     },
@@ -666,7 +665,7 @@
       "source": [
         "### LSTM\n"
       ],
-      "id": "a0d46436"
+      "id": "bdaf5bb6"
     },
     {
       "cell_type": "code",
@@ -678,7 +677,7 @@
         "\n",
         "results_3y_lstm = train_single_model(spread['US_KR_3Y'], 'LSTM', '3Y Yield Spread', LOOKBACK)"
       ],
-      "id": "a696b710",
+      "id": "56c70fe9",
       "execution_count": null,
       "outputs": []
     },
@@ -688,7 +687,7 @@
       "source": [
         "### GRU\n"
       ],
-      "id": "7ee567db"
+      "id": "d376c5c5"
     },
     {
       "cell_type": "code",
@@ -699,7 +698,7 @@
         "\n",
         "results_3y_gru = train_single_model(spread['US_KR_3Y'], 'GRU', '3Y Yield Spread', LOOKBACK)"
       ],
-      "id": "d964f3f1",
+      "id": "640d0467",
       "execution_count": null,
       "outputs": []
     },
@@ -712,7 +711,7 @@
         "\n",
         "# 3Y Forecast\n"
       ],
-      "id": "b214b935"
+      "id": "db3212dc"
     },
     {
       "cell_type": "code",
@@ -751,7 +750,7 @@
         "        spread, 'US_KR_3Y', LOOKBACK  \n",
         "    )"
       ],
-      "id": "2957f03b",
+      "id": "6b682eb6",
       "execution_count": null,
       "outputs": []
     },
@@ -765,7 +764,7 @@
         "\n",
         "### RNN\n"
       ],
-      "id": "6bcab676"
+      "id": "41d74aac"
     },
     {
       "cell_type": "code",
@@ -776,7 +775,7 @@
         "\n",
         "results_10y_rnn = train_single_model(spread['US_KR_10Y'], 'RNN', '10Y Yield Spread', LOOKBACK)"
       ],
-      "id": "0591098a",
+      "id": "93af34ce",
       "execution_count": null,
       "outputs": []
     },
@@ -786,7 +785,7 @@
       "source": [
         "### LSTM\n"
       ],
-      "id": "175a1696"
+      "id": "f68198f7"
     },
     {
       "cell_type": "code",
@@ -798,7 +797,7 @@
         "\n",
         "results_10y_lstm = train_single_model(spread['US_KR_10Y'], 'LSTM', '10Y Yield Spread', LOOKBACK)"
       ],
-      "id": "d2b3f8b4",
+      "id": "41f8addc",
       "execution_count": null,
       "outputs": []
     },
@@ -808,7 +807,7 @@
       "source": [
         "### GRU\n"
       ],
-      "id": "5f396421"
+      "id": "c0a9186a"
     },
     {
       "cell_type": "code",
@@ -820,7 +819,7 @@
         "\n",
         "results_10y_gru = train_single_model(spread['US_KR_10Y'], 'GRU', '10Y Yield Spread', LOOKBACK)"
       ],
-      "id": "249e491b",
+      "id": "2b777569",
       "execution_count": null,
       "outputs": []
     },
@@ -832,7 +831,7 @@
         "\n",
         "# 10Y Forecast\n"
       ],
-      "id": "5a9e0b55"
+      "id": "559758cc"
     },
     {
       "cell_type": "code",
@@ -869,7 +868,7 @@
         "        spread, 'US_KR_10Y', LOOKBACK \n",
         "    )"
       ],
-      "id": "dacda531",
+      "id": "7abc60a0",
       "execution_count": null,
       "outputs": []
     },
@@ -879,7 +878,7 @@
       "source": [
         "### model comparison\n"
       ],
-      "id": "87349755"
+      "id": "f49430f4"
     },
     {
       "cell_type": "code",
@@ -897,7 +896,7 @@
         "rmse_df1 = pd.DataFrame(data)\n",
         "display(rmse_df1.style.hide(axis=\"index\"))"
       ],
-      "id": "be89b997",
+      "id": "23eb96a2",
       "execution_count": null,
       "outputs": []
     },
@@ -909,7 +908,7 @@
         "\n",
         "### Data cleaning\n"
       ],
-      "id": "1248d9a8"
+      "id": "b3c58885"
     },
     {
       "cell_type": "code",
@@ -961,7 +960,7 @@
         "df4 = df4.fillna(method='ffill')\n",
         "df4 = df4.dropna()"
       ],
-      "id": "596ebaed",
+      "id": "6f2dc861",
       "execution_count": null,
       "outputs": []
     },
@@ -971,7 +970,7 @@
       "source": [
         "### Utility functions\n"
       ],
-      "id": "642af1ce"
+      "id": "f12a43e4"
     },
     {
       "cell_type": "code",
@@ -1101,7 +1100,7 @@
         "    plt.legend()\n",
         "    plt.show()"
       ],
-      "id": "f8518ada",
+      "id": "6e0f8110",
       "execution_count": null,
       "outputs": []
     },
@@ -1111,7 +1110,7 @@
       "source": [
         "### Forecast & modeling function\n"
       ],
-      "id": "b87312b0"
+      "id": "d228857d"
     },
     {
       "cell_type": "code",
@@ -1366,7 +1365,7 @@
         "\n",
         "    return forecast_orig\n"
       ],
-      "id": "0f1118d3",
+      "id": "b3b811a0",
       "execution_count": null,
       "outputs": []
     },
@@ -1376,7 +1375,7 @@
       "source": [
         "### Forecast plot generating function\n"
       ],
-      "id": "35684aab"
+      "id": "6cd6e21e"
     },
     {
       "cell_type": "code",
@@ -1549,7 +1548,7 @@
         "    fig.show()\n",
         "    return fig"
       ],
-      "id": "b33403f1",
+      "id": "add62ec1",
       "execution_count": null,
       "outputs": []
     },
@@ -1563,7 +1562,7 @@
         "\n",
         "### RNN\n"
       ],
-      "id": "e945fbcc"
+      "id": "a17faecf"
     },
     {
       "cell_type": "code",
@@ -1577,7 +1576,7 @@
         "\n",
         "results_exports_rnn = train_single_model(df4, 'RNN', 'South korea Exports to USA(thousand dollars)', LOOKBACK)"
       ],
-      "id": "5947c378",
+      "id": "c6d81999",
       "execution_count": null,
       "outputs": []
     },
@@ -1587,7 +1586,7 @@
       "source": [
         "### LSTM\n"
       ],
-      "id": "95df6c40"
+      "id": "875ed049"
     },
     {
       "cell_type": "code",
@@ -1598,7 +1597,7 @@
         "\n",
         "results_exports_lstm = train_single_model(df4, 'LSTM', 'South Korea to USA(thousand dollars)', LOOKBACK)\n"
       ],
-      "id": "204d05c6",
+      "id": "4af66bed",
       "execution_count": null,
       "outputs": []
     },
@@ -1608,7 +1607,7 @@
       "source": [
         "### GRU\n"
       ],
-      "id": "0fe27614"
+      "id": "d99e34ff"
     },
     {
       "cell_type": "code",
@@ -1619,7 +1618,7 @@
         "\n",
         "results_exports_gru = train_single_model(df4, 'GRU', 'South Korea export to USA(thousand dollars)', LOOKBACK)"
       ],
-      "id": "40ad6892",
+      "id": "cae53709",
       "execution_count": null,
       "outputs": []
     },
@@ -1629,7 +1628,7 @@
       "source": [
         "### Forecasting & Final model summary\n"
       ],
-      "id": "0059125c"
+      "id": "f477f515"
     },
     {
       "cell_type": "code",
@@ -1693,7 +1692,7 @@
         "    confidence=0.95\n",
         ")"
       ],
-      "id": "166b2634",
+      "id": "42d99f46",
       "execution_count": null,
       "outputs": []
     },
@@ -1705,7 +1704,7 @@
         "\n",
         "### model comparison\n"
       ],
-      "id": "cf9a46a8"
+      "id": "58762b97"
     },
     {
       "cell_type": "code",
@@ -1725,7 +1724,7 @@
         "# Display the table\n",
         "display(rmse_df.style.hide(axis=\"index\"))"
       ],
-      "id": "ed49bf4e",
+      "id": "5d10178b",
       "execution_count": null,
       "outputs": []
     }
