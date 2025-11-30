@@ -9,7 +9,7 @@ execute:
   kernel: tf-base   
 ---
 
-# Deep learning
+# Introduction
 
 
 ### package & load data
@@ -182,7 +182,7 @@ def forecast(model, last_input, n_steps):
     return forecast_vals
 ```
 
-# forecast plot function
+### forecast plot function
 ```{python}
 #| echo: true
 #| code-fold: true
@@ -342,7 +342,7 @@ def plot_forecast_with_confidence_plotly(results, best_model_name, forecast_orig
 
 ```
 
-# Train/val/test split & Model function
+### Train/val/test split & Model function
 
 ```{python}
 #| echo: true
@@ -717,18 +717,8 @@ else:
     )
 ```
 
-# Summary Comparison
-```{python}
-#| echo: true
-#| code-fold: true
 
-print("\n3Y Yield Spread Results:")
-print(comparison_3y.to_string(index=False))
-
-print("\n10Y Yield Spread Results:")
-print(comparison_10y.to_string(index=False))
-```
-
+### model comparison
 ```{python}
 #| echo: true
 #| code-fold: true

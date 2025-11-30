@@ -3,7 +3,7 @@ title: "Other: Interrupted TS/ARFIMA/Spectral Analysis"
 format: html
 ---
 
-# Interupted Time series
+### Introduction
 
 
 ```{r,warning=FALSE,message=F}
@@ -400,7 +400,141 @@ fig
 ```
 
 
+### delayed effect 
+
+```{r,warning=FALSE,message=F}
+#| echo: true
+#| code-fold: true
 
 
+library(dplyr)
+library(plotly)
+
+
+krw$Y_hat <- predict(model, newdata = krw)
+
+datanew <- data.frame(
+  Xt = krw$Xt,
+  Zt = 0,
+  Pt = 0
+)
+krw$Y_counterfactual <- predict(model, newdata = datanew)
+
+
+intervention_index <- which(krw$Date == intervention_date)
+
+
+delayed_index <- intervention_index +180
+delayed_index <- min(delayed_index, nrow(krw))   
+delayed_effect_date <- krw$Date[delayed_index]
+
+
+y_min <- min(krw$Y, krw$Y_hat, krw$Y_counterfactual, na.rm = TRUE)
+y_max <- max(krw$Y, krw$Y_hat, krw$Y_counterfactual, na.rm = TRUE)
+
+
+fig <- plot_ly()
+
+fig <- fig %>%
+  add_markers(
+    data = krw,
+    x = ~Date, y = ~Y,
+    name = "Observed KRW/USD",
+    marker = list(color = "gray", opacity = 0.5),
+    hovertemplate = paste(
+      "Date: %{x|%Y-%m-%d}<br>",
+      "Observed: ₩%{y:,.2f}<extra></extra>"
+    )
+  )
+
+fig <- fig %>%
+  add_lines(
+    x = krw$Date[1:(intervention_index - 1)],
+    y = krw$Y_hat[1:(intervention_index - 1)],
+    name = "Predicted (Pre-crisis)",
+    line = list(color = "dodgerblue"),
+    hovertemplate = paste(
+      "Date: %{x|%Y-%m-%d}<br>",
+      "Predicted (pre): ₩%{y:,.2f}<extra></extra>"
+    )
+  )
+
+fig <- fig %>%
+  add_lines(
+    x = krw$Date[intervention_index:nrow(krw)],
+    y = krw$Y_hat[intervention_index:nrow(krw)],
+    name = "Predicted (Post-crisis)",
+    line = list(color = "dodgerblue", dash = "solid"),
+    hovertemplate = paste(
+      "Date: %{x|%Y-%m-%d}<br>",
+      "Predicted (post): ₩%{y:,.2f}<extra></extra>"
+    )
+  )
+
+fig <- fig %>%
+  add_lines(
+    x = krw$Date[intervention_index:nrow(krw)],
+    y = krw$Y_counterfactual[intervention_index:nrow(krw)],
+    name = "Counterfactual (No crisis)",
+    line = list(color = "darkorange", dash = "dash"),
+    hovertemplate = paste(
+      "Date: %{x|%Y-%m-%d}<br>",
+      "Counterfactual: ₩%{y:,.2f}<extra></extra>"
+    )
+  )
+
+fig <- fig %>%
+  layout(
+    title = "KRW-USD Exchange Rate: Predicted vs Counterfactual (Delayed Effects)",
+    xaxis = list(title = "Date"),
+    yaxis = list(title = "KRW per USD"),
+    legend = list(x = 0.01, y = 0.99),
+    shapes = list(
+      list(
+        type = "line",
+        x0 = intervention_date, x1 = intervention_date,
+        y0 = y_min, y1 = y_max,
+        line = list(color = "red", dash = "dot"),
+        xref = "x", yref = "y"
+      ),
+      list(
+        type = "line",
+        x0 = delayed_effect_date, x1 = delayed_effect_date,
+        y0 = y_min, y1 = y_max,
+        line = list(color = "green", dash = "dot"),
+        xref = "x", yref = "y"
+      )
+    ),
+    annotations = list(
+      # Start of Crisis
+      list(
+        x = intervention_date,
+        y = y_max * 1.02,               
+        text = "Start of Crisis",
+        showarrow = TRUE,
+        arrowhead = 2,
+        arrowsize = 1,                  
+        arrowwidth = 1.5,               
+        ax = -20, ay = -40,                
+        font = list(size = 11, color = "red")
+      ),
+      # Delayed Effect
+      list(
+        x = delayed_effect_date,
+        y = y_max * 0.99,               
+        text = "Delayed Effect",
+        showarrow = TRUE,
+        arrowhead = 2,
+        arrowsize = 1,
+        arrowwidth = 1.5,
+        ax = 20, ay = -30,
+        font = list(size = 11, color = "purple")
+      )
+    )
+  )
+
+fig
+
+```
 
 
