@@ -614,8 +614,73 @@ results_3y_gru = train_single_model(spread['US_KR_3Y'], 'GRU', '3Y Yield Spread'
 
 :::
 
+# 10Y Yield Spread (US-KR)
 
-# 3Y Forecast
+::: panel-tabset
+
+### RNN
+```{python}
+#| echo: true
+#| code-fold: true
+
+results_10y_rnn = train_single_model(spread['US_KR_10Y'], 'RNN', '10Y Yield Spread', LOOKBACK)
+```
+
+### LSTM
+```{python}
+#| echo: true
+#| code-fold: true
+
+
+results_10y_lstm = train_single_model(spread['US_KR_10Y'], 'LSTM', '10Y Yield Spread', LOOKBACK)
+```
+
+### GRU
+```{python}
+#| echo: true
+#| code-fold: true
+
+
+results_10y_gru = train_single_model(spread['US_KR_10Y'], 'GRU', '10Y Yield Spread', LOOKBACK)
+```
+
+:::
+
+
+
+### model comparison
+```{python}
+#| echo: true
+#| code-fold: true
+data = {
+    "Model Type": ["Traditional","Traditional","Deep Learning", "Deep Learning", "Deep Learning","Deep Learning", "Deep Learning", "Deep Learning" ],
+    "Model": ["ARIMA(3y)","ARIMA(10y)","RNN(3y)", "LSTM(3y)","GRU(3y)", "RNN(10y)","LSTM(10Y)","GRU(10y)"],
+    "Input Type": ["Univariate", "Univariate", "Univariate", "Univariate", "Univariate", "Univariate", "Univariate", "Uniivariate"],
+    "RMSE": [0.082926,0.08423856,results_3y_rnn['test_rmse'],results_3y_lstm['test_rmse'],results_10y_gru['test_rmse'],results_10y_rnn['test_rmse'], results_10y_lstm['test_rmse'],results_10y_gru['test_rmse']]
+}
+
+rmse_df1 = pd.DataFrame(data)
+display(rmse_df1.style.hide(axis="index"))
+```
+
+- Relative Performance
+
+ Across both the 3-year and 10-year yield spreads, the simple RNN achieves the lowest RMSE among the three deep learning models, with the GRU second and the LSTM performing worst. However, directional accuracy is only around 40–50% for all models, which is not high enough to consider any of them as strong short-term forecasting tools. This suggests that while the RNN and GRU can track the overall level of the spread reasonably well, they struggle to capture short-horizon fluctuations. The LSTM, despite being the most complex architecture, delivers the highest RMSE and only slightly better directional accuracy for the 3-year spread.
+
+-Effectiveness of Regularization 
+
+ All three architectures are trained under the same regularization scheme: dropout of 0.3 after each layer, early stopping on validation loss with a patience of 25 epochs, and a ReduceLROnPlateau scheduler to lower the learning rate when validation loss stops improving. The training logs indicate that this setup keeps optimization stable and mitigates overfitting. For the 3-year RNN, the final training loss is approximately 0.00081 versus a validation loss of about 0.00093, with early stopping triggered around epoch 79 out of 104. For the 3-year GRU, the training loss is about 0.00143 and the validation loss about 0.00106, again fairly close. The 10-year models show similar behavior; in some cases, the validation loss is even slightly lower than the training loss (e.g., 10Y RNN train 0.00090 vs. val 0.00042), which is consistent with dropout noise and early stopping rather than severe overfitting. The training and validation loss plots support this interpretation.
+ Thus, regularization is effective in maintaining training stability and preventing runaway overfitting, and the gap between training and validation losses is modest for all models. Nevertheless, there remains a clear performance gap between architectures: the LSTM still generalizes worse than the RNN and GRU, suggesting that its complexity is excessive relative to the information contained in a single univariate spread.
+
+-Comparison with Traditional Models 
+
+ The summary table that compares ARIMA to the deep models makes this even clearer. For both maturities, ARIMA dramatically outperforms all three deep-learning architectures in terms of RMSE. This indicates that the dynamics of the yield spread are still well captured by relatively low-order linear structure. The additional flexibility of RNNs, LSTMs, and GRUs does not translate into better predictions; instead, it increases variance and complicates model tuning. ARIMA also has advantages in interpretability and stability: its AR and MA coefficients can be directly inspected, the propagation of shocks is transparent, and mean-reversion behavior is easy to characterize.
+ Overall, this comparison shows that deep learning models are not always superior to traditional time series models. However, there may still be room to improve deep learning performance through more careful hyperparameter tuning, richer input features, or alternative architectures. Ultimately, selecting an appropriate model is crucial: more complex methods do not necessarily yield better forecasts when the underlying data-generating process and modeling conditions do not justify that complexity.
+
+
+# Forecast(3Y & 10Y)
+
+### 3Y Forecast
 ```{python}
 #| echo: true
 #| code-fold: true
@@ -651,39 +716,8 @@ else:
     )
 ```
 
-# 10Y Yield Spread (US-KR)
 
-::: panel-tabset
-
-### RNN
-```{python}
-#| echo: true
-#| code-fold: true
-
-results_10y_rnn = train_single_model(spread['US_KR_10Y'], 'RNN', '10Y Yield Spread', LOOKBACK)
-```
-
-### LSTM
-```{python}
-#| echo: true
-#| code-fold: true
-
-
-results_10y_lstm = train_single_model(spread['US_KR_10Y'], 'LSTM', '10Y Yield Spread', LOOKBACK)
-```
-
-### GRU
-```{python}
-#| echo: true
-#| code-fold: true
-
-
-results_10y_gru = train_single_model(spread['US_KR_10Y'], 'GRU', '10Y Yield Spread', LOOKBACK)
-```
-
-:::
-
-# 10Y Forecast
+### 10Y Forecast
 ```{python}
 #| echo: true
 #| code-fold: true
@@ -718,21 +752,7 @@ else:
 ```
 
 
-### model comparison
-```{python}
-#| echo: true
-#| code-fold: true
-data = {
-    "Model Type": ["Traditional","Traditional","Deep Learning", "Deep Learning", "Deep Learning","Deep Learning", "Deep Learning", "Deep Learning" ],
-    "Model": ["ARIMA(3y)","ARIMA(10y)","RNN(3y)", "LSTM(3y)","GRU(3y)", "RNN(10y)","LSTM(10Y)","GRU(10y)"],
-    "Input Type": ["Univariate", "Univariate", "Univariate", "Univariate", "Univariate", "Univariate", "Univariate", "Uniivariate"],
-    "RMSE": [0.082926,0.08423856,results_3y_rnn['test_rmse'],results_3y_lstm['test_rmse'],results_10y_gru['test_rmse'],results_10y_rnn['test_rmse'], results_10y_lstm['test_rmse'],results_10y_gru['test_rmse']]
-}
-
-rmse_df1 = pd.DataFrame(data)
-display(rmse_df1.style.hide(axis="index"))
-```
-
+For both the 3Y and 10Y spreads, the RNN is used to generate 30-step-ahead forecasts with a 95% confidence band built from test residuals. In the first several steps after the forecast origin, the model essentially continues the recent pattern of the test data: the predicted spread stays close to the last observed values and lies comfortably within the confidence interval, suggesting that the one-step dynamics are captured reasonably well over a short horizon. As we move further out, however, the behavior changes: the forecast path becomes noticeably smoother than the historical series, sharp day-to-day fluctuations are damped, and the uncertainty band fans out. This is typical of a one-step-ahead model applied recursively—the forecasts are most reliable over roughly the first 10–15 days, after which accumulated errors and the model’s implicit tendency toward a smoothed mean-reverting trajectory dominate. In practice, this means the univariate RNN forecasts are informative for very short-term spread scenarios, while longer-horizon projections should be treated more as indicative trend scenarios with wide uncertainty rather than precise point predictions.
 
 
 # Multivariate model
@@ -1378,6 +1398,42 @@ results_exports_lstm = train_single_model(df4, 'LSTM', 'South Korea to USA(thous
 results_exports_gru = train_single_model(df4, 'GRU', 'South Korea export to USA(thousand dollars)', LOOKBACK)
 ```
 
+:::
+
+
+### model comparison
+
+```{python}
+#| echo: true
+#| code-fold: true
+
+data = {
+    "Model Type": ["Traditional","Deep Learning", "Deep Learning", "Deep Learning"],
+    "Model": ["SARIMAX","RNN", "LSTM","GRU"],
+    "Input Type": ["Multivariate",  "Multivariate", "Multivariate", "Multivariate"],
+    "RMSE": [619185,results_exports_rnn['test_rmse'],results_exports_lstm['test_rmse'],results_exports_gru['test_rmse']]
+}
+rmse_df = pd.DataFrame(data)
+
+# Display the table
+display(rmse_df.style.hide(axis="index"))
+
+```
+
+
+- Relative performance (multivariate GRU/LSTM/RNN)
+
+ In the multivariate setting with South Korea’s exports to the U.S., the GRU is clearly the strongest of the three deep models, the LSTM is in the middle, and the plain RNN performs worst. The GRU achieves the lowest test RMSE and MAE, and its forecast line tracks the held-out test data more closely than the others, with relatively tight residuals and no obvious drift. The LSTM still manages to capture the upward trend but with noticeably larger errors and more volatility around turning points. The RNN, by contrast, has much higher errors and tends to indicate that a simple recurrent architecture struggles to summarize all the information in the multivariate input window. Overall, for this dataset the additional gating structure in the GRU seems genuinely useful, allowing it to exploit cross-series information and longer-range dependencies that the basic RNN cannot handle, while LSTM’s extra complexity does not translate into better accuracy given the data size.
+
+- Effectiveness of regularization
+ All three multivariate models share the same regularization,dropout on the recurrent stacks, early stopping on validation loss, and adaptive learning-rate reduction—and this setup performed well on preventing catastrophic overfitting even for the relatively large GRU and LSTM. Training and validation losses stay reasonably close to each other, and early stopping consistently triggers before the maximum epoch budget is used, which suggests that the models are not simply memorizing the training portion of the export series. Still, the gap in performance between GRU, LSTM, and especially RNN shows that regularization alone cannot rescue a poorly matched architecture: the RNN remains underpowered for the multivariate dynamics, and the LSTM appears somewhat over-parameterized. Concluding, regularization stabilizes learning and improves generalization somewhat, but choosing an appropriate architecture (here, the GRU) matters more than further tuning dropout or patience settings.
+
+
+- Comparison with SARIMAX (traditional multivariate model)
+ Compared with the traditional model, the traditional model still has the edge: SARIMAX achieves a substantially lower test RMSE than any of the recurrent networks, while also producing stable, interpretable dynamics. This indicates that much of the structure in the export series—trend, seasonality, and relatively simple lag relationships—is well captured by linear time-series methods once you allow for appropriate differencing and seasonal terms. The GRU comes closest but still cannot match SARIMAX’s accuracy, and it requires more tuning effort and offers far less transparency about how shocks propagate through time. Taken together, the evidence suggests that for this particular multivariate macro dataset, SARIMAX is the most effective workhorse model, with the GRU being a reasonable nonlinear alternative.RNN and LSTM, however, appear dominated by these two in both performance and practicality.
+
+
+
 
 ### Forecasting & Final model summary
 
@@ -1441,25 +1497,6 @@ fig = plot_forecast_exports_plotly(
 )
 ```
 
-:::
+- Forecast horizon and behavior
 
-### model comparison
-
-```{python}
-#| echo: true
-#| code-fold: true
-
-data = {
-    "Model Type": ["Traditional","Deep Learning", "Deep Learning", "Deep Learning"],
-    "Model": ["SARIMAX","RNN", "LSTM","GRU"],
-    "Input Type": ["Multivariate",  "Multivariate", "Multivariate", "Multivariate"],
-    "RMSE": [619185,results_exports_rnn['test_rmse'],results_exports_lstm['test_rmse'],results_exports_gru['test_rmse']]
-}
-rmse_df = pd.DataFrame(data)
-
-# Display the table
-display(rmse_df.style.hide(axis="index"))
-
-```
-
-
+ For the exports example, the best model forward is to produce a 12-month forecast, which reveals how these networks behave as the horizon extends. The GRU’s forecast starts near the last observed value and then follows a smooth, almost monotonic upward path, with an empirically based 95% confidence band that gradually widens the further you move from the forecast origin. Over the first few steps, the model’s predictions look quite plausible as short-term continuations of the recent trend, but as you approach the end of the year-ahead window, the forecasts become increasingly dominated by an extrapolated trend rather than detailed seasonal or cyclical structure—local fluctuations that appear in the historical data are largely smoothed away. This pattern suggests that the multivariate GRU is most reliable for short-to-medium horizons (a few months ahead), where it is still anchored by recent observations; deeper into the 12-month horizon, its output is better interpreted as a trend scenario with quantified uncertainty than as a precise monthly prediction.
