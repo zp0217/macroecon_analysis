@@ -33,6 +33,13 @@ library(kableExtra)
 library(broom)
 ```
 
+
+In economics, financial crises leave clear and lasting impacts across asset markets. When a crisis originates in an economy issuing a major international currency (e.g., USD, JPY, GBP, EUR), its effects tend to be larger than those of crises in smaller economies. This study focuses on how the United States economy affects the South Korean economy, using the 2008 global financial crisis—which began in the United States—as the primary case.
+
+Although there are many factors that can trigger a financial crisis, once it begins, most financial assets typically experience sharp declines for at least one to two years, with effects that can persist for up to a decade. Among South Korean financial assets, the most severely affected during this period was the exchange rate. Historical data show that, following the U.S.-led crisis, the value of the South Korean won depreciated substantially against the U.S. dollar.
+
+The purpose of this section is to treat the 2008 financial crisis as an exogenous shock and examine how it affected the KRW/USD spot exchange rate, as well as to consider how the exchange rate might have evolved had the crisis not occurred.
+
 ### Time series plot with intervention(2008-08-01)
 
 ```{r,warning=FALSE,message=F}
@@ -104,6 +111,7 @@ fig
 
 ```
 
+The time series plot shows a clear change in trend before and after the 2008 financial crisis. Prior to 2008, the KRW exchange rate was relatively stable. However, once the crisis began, the KRW/USD rate surged sharply.
 
 ### Interupted Time series data preparation
 
@@ -203,6 +211,20 @@ kable(
   )
 ```
 
+The regression model summary shows that all coefficients have very small p-values, indicating that each of them is statistically significant. This implies that the model meaningfully captures both the underlying trend in the KRW–USD spot exchange rate and the impact of the 2008 financial crisis.
+
+- The Time coefficient measures the pre-crisis trend in the KRW–USD exchange rate. It suggests that, for each day before the 2008 crisis, the KRW–USD spot rate decreased by approximately ₩0.05, indicating a modest appreciating trend of the Korean won against the U.S. dollar.
+
+- The financial crisis indicator (Zₜ) captures the immediate effect of the 2008 financial crisis. Its coefficient of about ₩294.44 implies that, at the onset of the crisis, the KRW–USD spot rate jumped upward by roughly ₩294.44, reflecting a sharp depreciation of the Korean won.
+
+- The time-since-crisis variable (Pₜ) represents the change in trend after the crisis. Its coefficient of about ₩−0.01 indicates that, following the crisis, the KRW–USD spot rate began to decrease by an additional ₩0.01 per day relative to the pre-crisis trend, consistent with a gradual recovery after the initial shock.
+
+- The constant term represents the estimated level of the KRW–USD spot rate at the start of the sample period, with a value of approximately ₩1,008.50.
+
+Overall, the results suggest that the 2008 financial crisis had a severe and immediate impact on the KRW–USD exchange rate, causing a large one-time depreciation of the Korean won, followed by a slow but steady recovery over time.
+
+
+
 ### Interupted time series plot with trend line
 
 ```{r,warning=FALSE,message=F}
@@ -284,6 +306,11 @@ fig <- plot_ly(krw, x = ~Date) %>%
 fig
 ```
 
+This time series plot shows an interrupted time series for the KRW–USD exchange rate (KRW per USD), with the intervention marked by the red vertical line.
+Before the intervention (around 2005–2007), the exchange rate followed a gradually declining trend, moving from roughly 1,000 KRW per USD toward the mid-900s. This corresponds to a slow appreciation of the Korean won.
+
+At the intervention date, the observed series exhibits a sharp upward jump, with the exchange rate spiking well above 1,500 KRW per USD. Compared with the extended pre-intervention trend (orange dotted line), this represents a large positive level shift in the exchange rate, i.e. a sudden and sizable depreciation of the won.
+In the post-intervention period, the exchange rate falls back from its peak but does not return to the pre-crisis path. Instead, the post-intervention trend (green line) shows a much higher average level and a flatter downward slope than the counterfactual path implied by the pre-intervention trend. While there is some gradual appreciation, the exchange rate stabilizes around 1,100 KRW per USD rather than converging toward the lower levels implied by the orange line.
 
 
 
@@ -307,13 +334,6 @@ intervention_index <- which(krw$Date == intervention_date)
 y_min <- min(krw$Y, krw$Y_hat, krw$Y_counterfactual, na.rm = TRUE)
 y_max <- max(krw$Y, krw$Y_hat, krw$Y_counterfactual, na.rm = TRUE)
 
-```
-
-
-
-```{r,warning=FALSE,message=F}
-#| echo: true
-#| code-fold: true
 
 library(plotly)
 
@@ -398,6 +418,9 @@ fig <- fig %>%
 fig
 
 ```
+
+
+This plot  compares the observed KRW–USD exchange rate with the fitted paths from an interrupted time-series model and a counterfactual “no-crisis” scenario around the 2008 financial crisis. The pre-crisis fitted trend (purple) slopes gently downward, implying a gradual appreciation of the won, while the counterfactual extension of this trend (orange dashed) suggests the exchange rate would have continued to fall toward levels below 900 KRW per USD. In contrast, the post-crisis predicted path (blue) starts from a much higher level of around 1,200–1,250 KRW per USD and declines only slowly, closely tracking the actual data. This indicates that the 2008 crisis caused both a sharp immediate depreciation of the won (a large upward level shift) and a persistent change in the underlying trend, leaving the KRW–USD rate on a higher, more weak-won trajectory than would have been expected in the absence of the crisis.
 
 
 ### delayed effect 
@@ -537,3 +560,4 @@ fig
 ```
 
 
+This plot shows how the delayed effect changes the interpretation of the 2008 financial crisis on the KRW–USD exchange rate. The pre-crisis prediction (blue line) continues the gently declining trend of the won’s appreciation up to the crisis date (red dashed line), and its counterfactual extension (orange dashed line) shows that, in the absence of a crisis, the exchange rate would likely have kept falling toward the mid-800 KRW range by the mid-2010s. In reality, however, the observed series (grey dots) rises sharply only after the crisis date, with the largest depreciation occurring around the “delayed effect” date (green dashed line). The post-crisis prediction that incorporates this delayed effect tracks this pattern by shifting the level of the exchange rate upward. This suggests that the financial crisis did not instantaneously change the exchange-rate regime, but instead led, with some delay, to a persistent move to a weaker-won trajectory relative to the no-crisis counterfactual.
