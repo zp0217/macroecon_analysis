@@ -11,6 +11,12 @@ execute:
 
 # Introduction
 
+The previous section examined financial time series models for the South Korean won spot exchange rate against the USD. Building on that, this section shifts the focus to deep learning methods and analyzes two key macro-financial channels: the government bond yield spread between South Korea and the United States, and South Korea’s exports to the United States. Together, these variables capture how Korea’s economy co-moves with U.S. financial conditions and external demand, providing a richer perspective than exchange rates alone.
+
+The first part of the analysis applies recurrent neural networks to the 3-year and 10-year U.S.–Korea government bond yield spreads. These spreads summarize differences in monetary policy stance, growth expectations, and risk sentiment across the two countries, and thus serve as a compact indicator of Korea’s financial conditions relative to the U.S.
+
+The second part extends the framework to a multivariate setting, modeling South Korea’s exports to the U.S. (in thousand dollars) jointly with several key drivers: U.S. industrial production, U.S. equity market risk (VIX), and the KRW/USD exchange rate. This multivariate specification treats exports and their main external determinants as an interconnected system rather than as separate series, allowing the model to reflect how shifts in U.S. demand, global risk sentiment, and exchange rates translate into movements in South Korean exports to the U.S.
+
 
 ### package & load data
 ```{python}
@@ -751,8 +757,9 @@ else:
     )
 ```
 
+Forecast horizon and behavior
 
-For both the 3Y and 10Y spreads, the RNN is used to generate 30-step-ahead forecasts with a 95% confidence band built from test residuals. In the first several steps after the forecast origin, the model essentially continues the recent pattern of the test data: the predicted spread stays close to the last observed values and lies comfortably within the confidence interval, suggesting that the one-step dynamics are captured reasonably well over a short horizon. As we move further out, however, the behavior changes: the forecast path becomes noticeably smoother than the historical series, sharp day-to-day fluctuations are damped, and the uncertainty band fans out. This is typical of a one-step-ahead model applied recursively—the forecasts are most reliable over roughly the first 10–15 days, after which accumulated errors and the model’s implicit tendency toward a smoothed mean-reverting trajectory dominate. In practice, this means the univariate RNN forecasts are informative for very short-term spread scenarios, while longer-horizon projections should be treated more as indicative trend scenarios with wide uncertainty rather than precise point predictions.
+ For both the 3Y and 10Y spreads, the RNN is used to generate 30-step-ahead forecasts with a 95% confidence band built from test residuals. In the first several steps after the forecast origin, the model essentially continues the recent pattern of the test data: the predicted spread stays close to the last observed values and lies comfortably within the confidence interval, suggesting that the one-step dynamics are captured reasonably well over a short horizon. As we move further out, however, the behavior changes: the forecast path becomes noticeably smoother than the historical series, sharp day-to-day fluctuations are damped, and the uncertainty band fans out. This is typical of a one-step-ahead model applied recursively—the forecasts are most reliable over roughly the first 10–15 days, after which accumulated errors and the model’s implicit tendency toward a smoothed mean-reverting trajectory dominate. In practice, this means the univariate RNN forecasts are informative for very short-term spread scenarios, while longer-horizon projections should be treated more as indicative trend scenarios with wide uncertainty rather than precise point predictions.
 
 
 # Multivariate model
@@ -1497,6 +1504,6 @@ fig = plot_forecast_exports_plotly(
 )
 ```
 
-- Forecast horizon and behavior
+Forecast horizon and behavior
 
  For the exports example, the best model forward is to produce a 12-month forecast, which reveals how these networks behave as the horizon extends. The GRU’s forecast starts near the last observed value and then follows a smooth, almost monotonic upward path, with an empirically based 95% confidence band that gradually widens the further you move from the forecast origin. Over the first few steps, the model’s predictions look quite plausible as short-term continuations of the recent trend, but as you approach the end of the year-ahead window, the forecasts become increasingly dominated by an extrapolated trend rather than detailed seasonal or cyclical structure—local fluctuations that appear in the historical data are largely smoothed away. This pattern suggests that the multivariate GRU is most reliable for short-to-medium horizons (a few months ahead), where it is still anchored by recent observations; deeper into the 12-month horizon, its output is better interpreted as a trend scenario with quantified uncertainty than as a precise monthly prediction.
