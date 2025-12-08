@@ -3,7 +3,7 @@ title: "Conclusions"
 format: html
 ---
 
-[](/image/big_picture.png)
+![](/image/big_picture.png)
 
 The goal of this research project was to examine how changes in U.S. economic and financial conditions transmit to South Korea’s financial markets and real economy. Using time-series methods on exchange rates,yield curve, equity indices, trade flows and  housing data, the project aims to measure transmission and to show what these dynamics mean for real people in Korea in both macro and microecnomical ways. 
 
@@ -18,11 +18,11 @@ Financial time-series models (ARCH/GARCH) were more focusing on volatility. Both
 The deep-learning section tested whether more flexible nonlinear models—RNNs, LSTMs, and GRUs—could improve forecasts for the U.S.–Korea yield spreads and Korean exports to the U.S. Compared with traditional ARIMA and SARIMAX benchmarks, the recurrent networks were able to learn complex temporal patterns but did not consistently outperform the best linear models in terms of RMSE, especially in the multivariate export setting. In fact, for exports, SARIMAX achieved the lowest test error while preserving a transparent link between U.S. demand, the exchange rate, and trade outcomes, with GRU models coming closest among the neural architectures but still at higher complexity and lower interpretability. This comparison suggests that, for macro-financial data of this type, well-specified linear time-series models remain powerful tools for policy and risk analysis. 
 
 
-[](/image/spglobal.png)
+![](/image/spglobal.png)
 
 In current real-time conditions, the picture in 2025 closely matches the transmission channels modeled in this project. South Korean equities have staged a strong rally, with the KOSPI up roughly 60% year-to-date and recently trading above the 4,000 level as foreign investors return on the back of AI-driven demand for Korean chip and tech stocks (S&P Global, 2025)[@spglobal2025,]. 
 
-[](/image/kor.png)
+![](/image/kor.png)
 
 The won, meanwhile, has weakened into the high-1,400s per U.S. dollar in late November and early December, reflecting persistent interest-rate differentials with the United States and sustained demand for dollar assets (TradingEconomics, 2025)[@tradingeconomics2025 ]. Parallel exchange-rate data confirm that the won has remained under pressure as global investors favor dollar-denominated assets (ExchangeRates.org.uk, 2025)[@exchangerates2025 ] . 
 
