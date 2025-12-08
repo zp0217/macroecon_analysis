@@ -1,0 +1,2379 @@
+---
+title: "Multivariate TS Models(ARIMAX/SARIMAX/VAR)"
+format: html
+---
+
+
+
+
+
+::: {.callout-note appearance="simple"}
+
+# note
+
+Currently there are four models, but more models will be added
+
+:::
+
+
+This project examines how U.S. economic and financial conditions transmit to South Korea’s economy across markets and the real sector. Because there are many candidate indicators—spanning growth, risk sentiment, interest rates, exchange rates, and trade—careful variable selection is essential before modeling.
+Goal of this section is to build multivariate models to answer four questions: 
+
+- (i) how U.S. and Korean equities interact
+- (ii) how the Seoul metropolitan housing market responds to Long end of the term structure
+- (iii) which exogenous factors move the won–dollar exchange rate
+- (iv) which factors drive Korea’s exports to the U.S.
+
+
+# Literature reviews
+
+Before turning to the analysis, a targeted literature review aligns the four questions with the overarching research objective and justifies each modeling choice. 
+
+In U.S.–South Korea equity linkages, Kim (2010)[@Kim2010] documents significant spillovers in higher moments (mean, volatility, skewness, kurtosis) between U.S. and Korean equity markets using high-frequency data, indicating that U.S. shocks propagate to Korean returns; more recently, a study in Business and Economic Research shows that changes in the VIX are negatively associated with KOSPI returns, reinforcing a U.S. risk-to-Korea transmission channel. Together, these results support a VAR that treats U.S. equity performance and global risk as upstream drivers of Korean equities, with a discount-rate control: include Δlog(S&P 500), VIX, Δlog(KOSPI), and a U.S. yield spread (10Y–3M or 10Y–2Y) to capture the rate channel affecting both markets.
+
+For the Seoul housing market, Lee (2022)[@Lee2022] uses a Korean time-varying parameter VAR (1991–2022) and finds that the impact of interest-rate shocks on housing prices strengthened markedly after the global financial crisis, implying state-dependent pass-through from rates to valuations. Complementary evidence from Min (2024)[@Min2024] likewise highlights time-varying impulse responses of Seoul housing to interest rates. These findings motivate a compact VAR comprising the U.S. 10-year Treasury yield, the Korea 10-year government bond yield, and the log of the Seoul housing price index, ordered to trace global-to-local rate pass-through and then housing, while leaving room to test time variation via rolling windows or TVP extensions.
+
+For the KRW/USD exchange rate, Yoon (2019)[@Yoon2019] argues that U.S. monetary conditions dominate KRW/USD dynamics given the dollar-centric trading of Korea’s FX market, while Masujima (2018, RIETI)[@Masujima2018] adds that exchange-rate drivers rotate across carry (rate differentials), the global dollar factor, and risk sentiment (VIX). These insights support a SARIMAX for Δlog(USD/KRW) with exogenous terms for the U.S.–Korea interest-rate spread (3Y or 10Y), Δlog(Dollar Index, DXY) to capture the global dollar cycle, and a risk proxy (VIX or Δlog(S&P 500))—a structure also consistent with funding-risk episodes highlighted for Korea by the IMF.
+
+Finally, on South Korea’s exports to the United States, a Bank of Korea working paper on dominant currency pricing (Son et al., 2023)[@Son2023] shows that Korean exports are heavily invoiced in U.S. dollars due to strategic complementarities and real hedging, implying that the dollar level often matters for short-run trade revenues. Pairing this with a U.S. demand proxy captures the real-side pull. Accordingly, model Δlog(Korea’s exports to the United States) with U.S. manufacturing demand (ISM Manufacturing PMI or U.S. industrial production), an exchange-rate term (Δlog(USD/KRW) and/or DXY for invoicing effects), and a risk/financing control (VIX), with seasonal terms for monthly data.
+
+
+
+
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+library(tidyverse)
+library(ggplot2)
+library(forecast)
+library(astsa) 
+library(xts)
+library(zoo)
+library(tseries)
+library(fpp2)
+library(fma)
+library(lubridate)
+library(tidyverse)
+library(TSstudio)
+library(tidyquant)
+library(plotly)
+library(readr)
+library(kableExtra)
+library(knitr)
+library(patchwork)
+library(vars)
+library(here)
+library(tsibble)
+library(dplyr)
+# calling data
+
+#KR base rate
+bok<- read.csv("../data/interest/bok.csv")%>%
+  rename(Date = date)
+bok$Date<- as.Date(bok$Date)
+bok <- bok %>%
+  mutate(Date = floor_date(Date, unit = "quarter")) %>%
+  group_by(Date) %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE)), .groups = "drop")
+
+
+# FED rate 
+
+usr<- read.csv("../data/interest/us_rate.csv")%>%
+  rename(Date = observation_date,rate = DFF)
+usr$Date<- as.Date(usr$Date)
+usr<- usr %>%
+  mutate(Date = floor_date(Date, unit = "quarter")) %>%
+  group_by(Date) %>%
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE)), .groups = "drop")
+
+# KRW/USD rate
+
+kr <- read.csv("../data/fx rate/kor.csv")
+kr <- kr %>%
+  transmute(
+    Date = as.Date(observation_date),
+    krw  = DEXKOUS,    
+    usd  = 1 / DEXKOUS  
+  ) %>%
+  filter(!is.na(Date)) %>%
+  arrange(Date) %>%
+  distinct(Date, .keep_all = TRUE) %>%
+  complete(Date = seq(min(Date), max(Date), by = "day")) %>%
+
+  fill(krw, usd, .direction = "down")
+
+
+# USD index 
+
+usd <- read_csv("../data/fx rate/usd_index.csv", show_col_types = FALSE)
+usd <- usd %>%
+  transmute(
+    Date = as.Date(Date),
+    usd_index = Close
+  ) %>%
+  filter(!is.na(Date)) %>%
+  arrange(Date) %>%
+  distinct(Date, .keep_all = TRUE) %>%
+  complete(Date = seq(min(Date), max(Date), by = "day")) %>%
+  fill(usd_index, .direction = "down")
+
+
+
+# Seoul housing data
+
+housing <- read_csv(here("data/housing/house.csv")) %>%
+  mutate(Date = as.Date(Date))
+
+housing <- housing %>% mutate(Date = as.Date(Date))
+
+
+# Yield data 
+
+us_yield  <- read.csv(here("data/yield", "us_yield.csv"))
+kor_yield   <- read.csv(here("data/yield", "kor_yield.csv"))
+
+
+us_yield$Date  <- as.Date(us_yield$Date)
+kor_yield$Date <- as.Date(kor_yield$Date)
+
+colnames(us_yield)[colnames(us_yield)  == "X3Y"]  <- "US_3Y"
+colnames(us_yield)[colnames(us_yield)  == "X10Y"] <- "US_10Y"
+colnames(kor_yield)[colnames(kor_yield) == "X3Y"]  <- "KR_3Y"
+colnames(kor_yield)[colnames(kor_yield) == "X10Y"] <- "KR_10Y"
+
+us_yield  <- us_yield[,  c("Date", "US_3Y", "US_10Y")]
+kor_yield <- kor_yield[, c("Date", "KR_3Y", "KR_10Y")]
+
+us_yield  <- us_yield  %>% arrange(Date) %>% fill(US_3Y, US_10Y, .direction = "down")
+kor_yield <- kor_yield %>% arrange(Date) %>% fill(KR_3Y, KR_10Y, .direction = "down")
+
+
+df <- merge(us_yield, kor_yield, by = "Date")
+
+df$US_3m10  <- df$US_3Y - df$US_10Y
+df$KR_3m10  <- df$KR_3Y - df$KR_10Y
+df$US_KR_3Y <- df$US_3Y - df$KR_3Y
+df$US_KR_10Y<- df$US_10Y - df$KR_10Y
+
+
+#import & export data 
+
+trade<- read_csv("../data/trade/trade_merged.csv")
+trade$balance<- trade$export_USD - trade$import_USD
+exports<- trade%>%
+  dplyr::select(Date,export_USD)
+#trade_ts <- trade %>%
+ # as_tsibble(index = Date, key = Type)
+
+
+# S&P500 data
+sp500 <- read_csv("../data/stock/sp500.csv")
+
+
+# KOSPI data
+kospi <- read_csv("../data/stock/kospi.csv")
+kospi$Date <- as.Date(kospi$Date)
+
+# VIX data(added for the modeling)
+vix<- read_csv("../data/stock/vix.csv")%>%
+  mutate(Date = ymd(Date)) %>%
+  arrange(Date) %>%
+  fill(vix, .direction = "down")
+
+
+# extract spreads from df
+
+
+us_spreads <- df %>%
+  dplyr::select(Date, US_3m10) %>%
+  rename(us_spread = US_3m10) %>%
+  mutate(Date = as.Date(Date))
+
+kor_spreads <- df %>%
+  dplyr::select(Date, KR_3m10) %>%
+  rename(kr_spread = KR_3m10) %>%
+  mutate(Date = as.Date(Date))
+
+us_kr_spreads_3y <- df %>%
+  dplyr::select(Date, US_KR_3Y) %>%
+  mutate(Date = as.Date(Date))
+
+us_kr_spreads_10y <- df %>%
+  dplyr::select(Date, US_KR_10Y) %>%
+  mutate(Date = as.Date(Date))
+
+# balance of payment(debt,equity)
+
+bp<- read_csv("../data/bp.csv")%>%
+  mutate(Date = ymd(Date)) %>%
+  rename(debt_securities = "Debt securities of P.I., Liabilities")%>%
+  rename(equity_securities = "Equity securities of P.I., Liabilities")%>%
+  arrange(Date)
+
+bp_debt<- data.frame(bp$Date,bp$debt_securities)
+bp_equity<- data.frame(bp$Date,bp$equity_securities)
+bp_debt<- bp_debt%>%rename(Date = bp.Date, debt_securities= bp.debt_securities)
+bp_equity<- bp_equity%>%rename(Date = bp.Date, equity_securities= bp.equity_securities)
+
+#oil price 
+
+oil<- read_csv("../data/oil.csv")%>%
+  rename(Date = observation_date)%>%
+  rename(wti = DCOILWTICO)%>%
+  mutate(Date = ymd(Date)) %>%
+  arrange(Date)%>%
+  fill(wti, .direction = "down")
+
+debt_monthly <- bp_debt %>%
+  mutate(year_month = floor_date(Date, "month")) %>%
+  group_by(year_month) %>%
+  slice_tail(n = 1) %>%
+  ungroup() %>%
+  mutate(Date = ceiling_date(year_month, "month") - days(1))%>%
+  dplyr::select(Date,debt_securities)
+
+equity_monthly <- bp_equity %>%
+  mutate(year_month = floor_date(Date, "month")) %>%
+  group_by(year_month) %>%
+  slice_tail(n = 1) %>%
+  ungroup() %>%
+  mutate(Date = ceiling_date(year_month, "month") - days(1))%>%
+  dplyr::select(Date,equity_securities)
+
+
+vix_monthly <- vix %>%
+  mutate(year_month = floor_date(Date, "month")) %>%
+  group_by(year_month) %>%
+  slice_tail(n = 1) %>%
+  ungroup() %>%
+  mutate(Date = ceiling_date(year_month, "month") - days(1))%>%
+  dplyr::select(Date,vix)
+
+```
+
+
+
+
+
+
+### Variables
+
+
+- FX spot rate (KRW per USD)
+
+The bilateral exchange rate quoted as won per dollar; it moves up when the USD strengthens or U.S. rates/risk rise and down when KRW demand or relative KR rates strengthen; up-moves mean a weaker KRW and costlier imports/funding while down-moves mean stronger KRW and easier external conditions; it matters because it transmits U.S. financial shifts into Korea’s prices, trade margins, and capital flows.
+
+
+- U.S.–Korea 3-year yield spread
+
+The 3Y U.S. Treasury yield minus the 3Y Korea Treasury Bond yield; it widens when U.S. front-to-belly rates outpace Korea’s and narrows when Korea’s rise or U.S. fall; widening implies policy divergence favoring USD assets and KRW pressure, narrowing implies the opposite; it matters as a near-term compass for FX, flows, and local funding costs.
+
+
+- U.S.–Korea 10-year yield spread
+
+The 10Y U.S. Treasury yield minus the 10Y Korea government bond yield; it moves with relative long-run growth/inflation expectations and term premium; wider spreads signal capital preference for U.S. duration and KRW headwinds, narrower spreads point to relatively easier conditions for Korea; it matters for portfolio allocations, currency valuation, and long-tenor financing.
+
+
+- S&P 500 index
+
+The main U.S. large-capital equity benchmark; it rises with stronger earnings/risk appetite and falls on growth scares or tighter policy; gains signal global risk-on that often supports KOSPI and KRW, while declines flag risk-off and potential outflows from Korea; it matters as the world’s equity bellwether shaping cross-border sentiment.
+
+
+- Dollar Index (DXY)
+
+A broad USD index versus major currencies(JPY,GBP,EUR,CAD,SEK,CHF); it rises with stronger U.S. growth/real yields or heightened risk and falls when global growth broadens or the Fed eases; increases mean tighter global financial conditions and KRW headwinds, decreases mean relief; it matters because it frames Korea’s external competitiveness and dollar funding costs.
+
+
+- South Korea exports to the United States (USD)
+
+The monthly value of Korean goods shipped to the U.S.; it rises with firm U.S. demand/tech upcycles and falls when U.S. activity softens or conditions tighten; increases mean stronger external demand and earnings support for Korea, decreases warn of slower production and profits; it matters as a direct real-economy link between the two countries.
+
+
+- VIX (U.S. equity volatility index)
+
+Implied 30-day volatility from S&P 500 options; it spikes in stress and recedes in calm; higher readings mean risk-off, likely KRW weakness and KOSPI pressure, lower readings mean risk-on support; it matters as a fast, forward-looking gauge of global risk that transmits into Korean assets.
+
+
+- U.S. manufacturing index (ISM Manufacturing PMI)
+
+A diffusion index of U.S. factory activity where 50 marks expansion; it rises with stronger orders/production and falls with slowdowns; higher prints mean firmer U.S. goods demand that often lifts Korean exports, lower prints caution on future orders; it matters as a timely cue for Korea’s trade and industrial cycle.
+
+
+- U.S. yield spread (10Y–3Y curve slope)
+
+The term spread between long and intermediate Treasuries; it steepens on improving growth/term premium and inverts ahead of slowdowns; steepening often signals risk-on and better global momentum, inversion warns of softer demand; it matters because it foreshadows the external environment Korea will face.
+
+
+- KOSPI index
+
+Korea’s main equity benchmark; it rises with global risk appetite, stable/strong KRW, and tech strength, and falls when the dollar tightens conditions or volatility jumps; up-moves mean improving earnings/flows, down-moves mean de-risking and potential outflows; it matters as the market-price readout of Korea’s cyclical exposure to U.S. conditions.
+
+
+- U.S. 10-year Treasury yield
+
+The anchor long-term U.S. risk-free rate; it rises on stronger growth/less-dovish policy or higher term premium and falls on easing or growth fears; higher yields mean tighter global discount rates and KRW/KOSPI headwinds, lower yields mean relief; it matters because it sets the tone for valuation and borrowing costs worldwide.
+
+
+- South Korea 10-year government bond yield
+
+Korea’s benchmark long-term sovereign yield; it rises with domestic inflation/growth or spillovers from higher U.S. yields and falls with easing/disinflation; increases mean tighter local conditions and pricier mortgages/corporate debt, decreases mean looser conditions; it matters for domestic credit, housing, and investment.
+
+
+- Seoul residential property price index
+
+An index of Seoul home prices; it rises with lower mortgage rates/strong incomes and softens when rates rise or credit tightens; up-moves signal wealth effects and consumption support, down-moves flag cooling demand and potential credit restraint; it matters as a slower-moving but powerful transmission channel from global rates to the household economy.
+
+
+### Model explanation
+
+
+- VAR model 1 — Equity co-movements (S&P 500, VIX, U.S. yield spread, KOSPI)
+
+Financial linkages transmit U.S. equity and risk shocks to Korean equities through discount-rate and sentiment channels, with feedback over short horizons. The VAR includes Δlog(S&P 500), VIX, the U.S. yield spread (10Y–3M or 10Y–2Y), and Δlog(KOSPI) as jointly endogenous variables. This set captures the main transmission mechanisms: the yield spread summarizes shifts in discount rates and growth expectations; S&P 500 represents U.S. equity innovations; VIX captures global risk aversion; and KOSPI reflects Korea’s market response. A VAR is justified because these variables interact contemporaneously and with lags; the system enables impulse responses from U.S. rate/equity/risk shocks to KOSPI, and variance decompositions that quantify the U.S. contribution to Korean equity volatility.
+
+- VAR model 2 — Rates pass-through and Seoul housing (US10Y, KR10Y, Seoul HPI)
+
+Housing valuations in Seoul are sensitive to financing conditions, and global rate movements typically filter through to domestic long-term yields before affecting prices with lags. The VAR comprises the U.S. 10-year Treasury yield, the Korea 10-year government bond yield, and the log of the Seoul housing price index. This configuration reflects a plausible ordering of influences: global long rates anchor international term structures, domestic long rates transmit the shock into local borrowing costs and mortgage pricing, and housing prices adjust gradually via affordability and discount-rate channels. A VAR is warranted because long rates and housing prices exhibit mutual dynamics and delayed pass-through; the framework traces how a U.S. term-structure shock propagates to Korean yields and then to housing over time, while allowing tests for lag length, stability, and time-variation.
+
+
+- SARIMAX model 1 — USD/KRW determinants
+
+Exchange-rate behavior in Korea is strongly influenced by cross-border interest-rate differentials, global risk sentiment, and the broad dollar cycle, reflecting the market’s integration with U.S. monetary conditions and dollar funding. The model includes the U.S.–Korea 3-year yield spread, the S&P 500, and the Dollar Index (DXY) as exogenous drivers of USD/KRW. The spread captures carry/UIP forces and relative monetary stance; the S&P 500 serves as a high-frequency proxy for global risk-on/off that tends to strengthen or weaken KRW; and DXY isolates the common dollar factor that moves bilateral rates beyond country-specific fundamentals. SARIMAX fits because USD/KRW exhibits strong serial correlation that ARIMA errors can handle, while the exogenous block reflects reasonably weakly exogenous global forces at the chosen frequency.
+
+- SARIMAX model 2— South Korea exports to the U.S.
+
+International trade research shows that partner-country demand, currency valuation, and global risk conditions jointly shape export dynamics—especially for economies like Korea that are tightly linked to U.S. manufacturing cycles and invoice a large share of exports in dollars. The model uses U.S. manufacturing activity (e.g., ISM Manufacturing PMI or U.S. industrial production), the KRW/USD spot rate, and the VIX as exogenous regressors for South Korea’s exports to the U.S. This selection is justified by clear channels: the U.S. manufacturing index captures external demand pull; the KRW/USD rate captures pricing and competitiveness as well as dollar-denominated revenue effects; and the VIX proxies global financial conditions that influence trade finance, inventory decisions, and risk-sensitive orders. A SARIMAX structure is appropriate because exports are persistent and seasonal, allowing ARIMA terms to absorb autocorrelation and seasonality while treating the U.S. indicators and VIX as upstream drivers at monthly frequency.
+
+
+# Models 
+
+- SARIMAX: 
+
+1.  South korea exports(vs USA) ~ VIX + US manufacturing Index + KRW/USD spot rate
+
+2.  USD/KRW spot rate ~ us-korea spread rate 3years+ us-korea spread rate 3years+ S&P500 + dollar index
+
+- VAR: 
+
+
+3. equity: s&p500, vix, us_yield_spread,KOSPI index
+
+4. US treasury yield curve 10 Years, South Korea government bond rate 10Years, Seoul housing index
+
+
+
+
+# VAR model
+
+
+# equity: s&p500, us_yield_spread,KOSPI index
+
+
+::: panel-tabset
+
+### time series plot
+
+
+
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+library(dplyr)
+df1 <- us_spreads %>%
+   left_join(sp500, by = "Date") %>%
+   left_join(kospi, by = "Date")%>%
+   dplyr::select(Date, us_spread, close_sp500 = Close.x , close_kospi = Close.y)%>%
+   arrange(Date) %>%
+   fill(close_sp500,close_kospi, .direction = "down")
+ 
+df1$log_kospi<- log(df1$close_kospi)
+df1$log_sp500<- log(df1$close_sp500)
+
+
+ start_year_df1  <- year(min(df1$Date))
+ start_month_df1 <- month(min(df1$Date))
+
+
+p1 <- plot_ly(df1, x = ~Date, y = ~us_spread, type = 'scatter', mode = 'lines',
+              name = "U.S Spread Rate") %>%
+  layout(yaxis = list(title = "U.S Spread Rate", titlefont = list(size = 14), tickfont = list(size = 12)))
+
+p2 <- plot_ly(df1, x = ~Date, y = ~log_sp500, type = 'scatter', mode = 'lines',
+              name = "S&P500 Index(log)") %>%
+  layout(yaxis = list(title = "S&P500 Index(log)", titlefont = list(size = 14), tickfont = list(size = 12)))
+
+p3 <- plot_ly(df1, x = ~Date, y = ~log_kospi, type = 'scatter', mode = 'lines',
+              name = "KOSPI Index(log)") %>%
+  layout(yaxis = list(title = "KOSPI Index(log)", titlefont = list(size = 14), tickfont = list(size = 12)))
+
+subplot(p1, p2, p3, nrows = 3, shareX = TRUE, titleX = TRUE) %>%
+  layout(title = list(text = "Equities:KOSPI index, S&P 500 index, U.S T-bond spread rate", font = list(size = 18)),
+         margin = list(l = 70, r = 40, t = 60, b = 40))
+
+```
+
+
+
+
+### parameter selection 
+
+
+
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+new_df1<- df1[,c(2,5,6)]
+df1.ts<-ts(new_df1,star=decimal_date(as.Date("2001-12-01",format = "%Y-%m-%d")),frequency = 252)
+VARselect(df1.ts, lag.max=10, type="both")
+```
+
+
+
+
+From parameter selction process, three parameters were suggested; p = 2,5,10
+
+### model summary
+
+
+
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+summary(fit <- VAR(new_df1, p=2, type="both"))
+```
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+summary(fit <- VAR(new_df1, p=5, type="both"))
+```
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+summary(fit <- VAR(new_df1, p=10, type="both"))
+```
+
+
+
+
+The VAR(2) model captures the short-term dynamics among the variables efficiently. The U.S. spread (us_spread) equation is mainly driven by its own lagged values, while both the Korean and U.S. stock indices (log_kospi and log_sp500) show strong dependence on their own past values and some cross-market effects. Most coefficients are statistically significant, and the model achieves a high R-squared (above 0.999) with low residual correlations, indicating a good fit and stable dynamics (all roots below one).
+
+The VAR(5) model slightly improves the overall fit, as reflected by a marginal increase in log-likelihood and a small reduction in residual variance. Some additional lag terms, especially for the stock market variables, become significant, suggesting that the model captures medium-term interdependencies between the U.S. and Korean markets. However, several higher-order lag coefficients remain insignificant, implying that the added complexity provides limited explanatory gain.
+
+The VAR(10) model, while achieving the highest log-likelihood, shows minimal improvement in explanatory power relative to the VAR(5) model. Many of the higher-order lag terms are statistically insignificant, and the R-squared values remain nearly identical to those of the simpler models. This indicates potential overfitting, as the model includes many parameters without substantial improvement in predictive accuracy.
+
+
+
+### CV
+
+
+
+
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+n=length(df1$log_sp500) 
+k=1480 #1480
+#n-k=4440; 4440/252=17.619
+rmse1 <- matrix(NA, 4440,3) #here 4440 is n-k
+rmse2 <- matrix(NA, 4440,3)
+rmse3 <- matrix(NA,4440,3) #here n-k / 252 = 4440/252 =17.619
+year<-c()
+ts_obj <- ts(df1[, c(2,5,6)], start=decimal_date(as.Date("2000-12-18",format = "%Y-%m-%d")),frequency = 252)
+st <- tsp(ts_obj)[1]+(k-1)/252 
+for(i in 1:17) #here 17 is (n-k ) / 252 = 4440/252 =17.619
+{
+  
+  xtrain <- window(ts_obj, end=st + i-1)
+  xtest <- window(ts_obj, start=st + (i-1) + 1/252, end=st + i)
+  
+  # first model p = 2 
+  fit <- vars::VAR(xtrain, p=2, type='both')
+  fcast <- predict(fit, n.ahead = 252)
+  
+  fspread<-fcast$fcst$us_spread
+  fkospi<-fcast$fcst$log_kospi
+  fsp<-fcast$fcst$log_sp500
+  
+  ff1<-data.frame(fspread[,1],fkospi[,1],fsp[,1]) 
+  year<-st + (i-1) + 1/252 
+  
+  
+  ff1<-ts(ff1,start=c(year,1),frequency = 252)
+  
+  a = 252*i-251 
+  b= 252*i 
+ 
+  rmse1[c(a:b),]  <-sqrt((ff1-xtest)^2)
+  
+  #second model p = 5
+  fit2 <- vars::VAR(xtrain, p=5, type='both')
+  fcast2 <- predict(fit2, n.ahead = 252)
+  
+  fspread2<-fcast2$fcst$us_spread
+  fkospi2<-fcast2$fcst$log_kospi
+  fsp2<-fcast2$fcst$log_sp500
+  ff2<-data.frame(fspread2[,1],fkospi2[,1],fsp2[,1])
+  
+  year<-st + (i-1) + 1/252
+  
+  ff2<-ts(ff2,start=c(year,1),frequency = 252)
+  
+  a = 252*i-251
+  b= 252*i
+  rmse2[c(a:b),]  <-sqrt((ff2-xtest)^2)
+  
+  #third model p = 10
+  fit3 <- vars::VAR(xtrain, p=10, type='both')
+  fcast3 <- predict(fit3, n.ahead = 252)
+  
+  fspread3<-fcast3$fcst$us_spread
+  fkospi3<-fcast3$fcst$log_kospi
+  fsp3<-fcast3$fcst$log_sp500
+  ff3<-data.frame(fspread3[,1],fkospi3[,1],fsp3[,1])
+  
+  year<-st + (i-1) + 1/252
+  
+  ff3<-ts(ff3,start=c(year,1),frequency = 252)
+  
+  a = 252*i-251
+  b= 252*i
+  rmse3[c(a:b),]  <-sqrt((ff3-xtest)^2)
+}
+
+```
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+day_index = 1:4440
+dates1 = as.Date(df1$Date[(k+1):n])
+rmse1 = data.frame(day_index,dates1,rmse1)
+names(rmse1) =c("Day","Date","log_kospi","log_sp500","us_spread")
+rmse2 = data.frame(day_index,dates1,rmse2)
+names(rmse2) =c("Day","Date","log_kospi","log_sp500","us_spread")
+rmse3 = data.frame(day_index,dates1,rmse3)
+names(rmse3) =c("Day","Date","log_kospi","log_sp500","us_spread")
+rmse1$Model <- "VAR(2)"
+rmse2$Model <- "VAR(5)"
+rmse3$Model <- "VAR(10)"
+rmse_combined <- rbind(rmse1, rmse2, rmse3)
+rmse1$Model <- "VAR(2)"
+rmse2$Model <- "VAR(5)"
+rmse3$Model <- "VAR(10)"
+rmse_combined <- rbind(rmse1, rmse2, rmse3)
+```
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+ggplot(data = rmse_combined, aes(x = Date, y = log_kospi, color = Model)) + 
+  geom_line() +
+  labs(
+    title = "CV RMSE for log_kospi",
+    x = "Day",
+    y = "RMSE",
+    color = "Model"
+  ) +
+  theme_minimal()
+
+```
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+ggplot(data = rmse_combined, aes(x = Date, y = log_sp500, color = Model)) + 
+  geom_line() +
+  labs(
+    title = "CV RMSE for log_sp500",
+    x = "Day",
+    y = "RMSE",
+    color = "Model"
+  ) +
+  theme_minimal()
+```
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+ggplot(data = rmse_combined, aes(x = Date, y = us_spread, color = Model)) + 
+  geom_line() +
+  labs(
+    title = "CV RMSE for us_spread",
+    x = "Day",
+    y = "RMSE",
+    color = "Model"
+  ) +
+  theme_minimal()
+```
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+
+var5<- VAR(ts_obj,p = 5,type= "both")
+acf(residuals(var5))
+```
+
+
+
+
+
+
+The three line plots above show the RMSE values for three variables, comparing the VAR(2),VAR(5) and var(10) models. Although it’s somewhat difficult to clearly distinguish which model performs better based solely on the plots, the VAR(2) model appears to have slightly lower RMSE values overall. Therefore, I decided to proceed with the VAR(5) model for further analysis.
+
+last plot is a acf plot for var(5) model's residuals. From the plot, the residual autocorrelations are mostly within the 95% confidence bounds , except for a strong spike at lag 0, which simply reflects the correlation of each residual with itself. The absence of significant spikes beyond lag 0 suggests that the VAR(5) specification has successfully removed serial correlation from the system. This implies that the model order (p=5) is sufficient. 
+
+Overall, the ACF of the residuals confirms that the VAR(5) model is appropriately specified and that the residuals behave as approximately white noise. 
+
+
+
+
+### forecast
+
+
+
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+
+df1$Date <- as.Date(df1$Date)
+n <- nrow(df1)
+
+actual_frequency <- nrow(df1) / as.numeric(difftime(max(df1$Date), 
+                                                     min(df1$Date), 
+                                                     units = "days")) * 365.25
+
+ts_obj <- ts(df1[, c("us_spread", "log_kospi", "log_sp500")],
+             start = decimal_date(min(df1$Date)),
+             frequency = round(actual_frequency))
+
+
+
+h <- 504
+fcast <- forecast(var5, h = h)
+
+
+hist_dates <- df1$Date
+
+last_date <- max(df1$Date)
+
+all_future_dates <- seq(last_date + 1, by = "day", length.out = 1000)
+future_weekdays <- all_future_dates[!weekdays(all_future_dates) %in% c("Saturday", "Sunday")]
+fcast_dates <- head(future_weekdays, h)
+
+
+fig1 <- plot_ly() %>%
+  add_lines(
+    x = tail(hist_dates, 2500),
+    y = tail(df1$us_spread, 2500),
+    name = "Historical",
+    line = list(color = "black", width = 1),
+    hovertemplate = "%{x|%Y-%m-%d}<br>%{y:.4f}<extra></extra>"
+  ) %>%
+  add_lines(
+    x = fcast_dates,
+    y = as.numeric(fcast$forecast$us_spread$mean),
+    name = "Forecast",
+    line = list(color = "blue", width = 2),
+    hovertemplate = "%{x|%Y-%m-%d}<br>%{y:.4f}<extra></extra>"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = as.numeric(fcast$forecast$us_spread$lower[,2]),
+    ymax = as.numeric(fcast$forecast$us_spread$upper[,2]),
+    name = "95% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = as.numeric(fcast$forecast$us_spread$lower[,1]),
+    ymax = as.numeric(fcast$forecast$us_spread$upper[,1]),
+    name = "80% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  layout(
+    title = "VAR(5) Forecast for US Spread",
+    xaxis = list(
+      title = "Year",
+      type = "date",
+      tickformat = "%Y",     
+      dtick = "M12"         
+    ),
+    yaxis = list(title = "US Spread"),
+    hovermode = "x unified"
+  )
+
+
+fig2 <- plot_ly() %>%
+  add_lines(
+    x = tail(hist_dates, 2500),
+    y = exp(tail(df1$log_kospi, 2500)),
+    name = "Historical",
+    line = list(color = "black", width = 1),
+    hovertemplate = "%{x|%Y-%m-%d}<br>%{y:.2f}<extra></extra>"
+  ) %>%
+  add_lines(
+    x = fcast_dates,
+    y = exp(as.numeric(fcast$forecast$log_kospi$mean)),
+    name = "Forecast",
+    line = list(color = "blue", width = 2),
+    hovertemplate = "%{x|%Y-%m-%d}<br>%{y:.2f}<extra></extra>"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = exp(as.numeric(fcast$forecast$log_kospi$lower[,2])),
+    ymax = exp(as.numeric(fcast$forecast$log_kospi$upper[,2])),
+    name = "95% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = exp(as.numeric(fcast$forecast$log_kospi$lower[,1])),
+    ymax = exp(as.numeric(fcast$forecast$log_kospi$upper[,1])),
+    name = "80% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  layout(
+    title = "VAR(5) Forecast for KOSPI",
+    xaxis = list(
+      title = "Year",
+      type = "date",
+      tickformat = "%Y",
+      dtick = "M12"
+    ),
+    yaxis = list(title = "KOSPI Index"),
+    hovermode = "x unified"
+  )
+
+
+fig3 <- plot_ly() %>%
+  add_lines(
+    x = tail(hist_dates, 2500),
+    y = exp(tail(df1$log_sp500, 2500)),
+    name = "Historical",
+    line = list(color = "black", width = 1),
+    hovertemplate = "%{x|%Y-%m-%d}<br>%{y:.2f}<extra></extra>"
+  ) %>%
+  add_lines(
+    x = fcast_dates,
+    y = exp(as.numeric(fcast$forecast$log_sp500$mean)),
+    name = "Forecast",
+    line = list(color = "blue", width = 2),
+    hovertemplate = "%{x|%Y-%m-%d}<br>%{y:.2f}<extra></extra>"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = exp(as.numeric(fcast$forecast$log_sp500$lower[,2])),
+    ymax = exp(as.numeric(fcast$forecast$log_sp500$upper[,2])),
+    name = "95% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = exp(as.numeric(fcast$forecast$log_sp500$lower[,1])),
+    ymax = exp(as.numeric(fcast$forecast$log_sp500$upper[,1])),
+    name = "80% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  layout(
+    title = "VAR(5) Forecast for S&P 500",
+    xaxis = list(
+      title = "Year",
+      type = "date",
+      tickformat = "%Y",
+      dtick = "M12"
+    ),
+    yaxis = list(title = "S&P 500 Index"),
+    hovermode = "x unified"
+  )
+
+fig1
+fig2
+fig3
+
+```
+
+
+
+
+
+From the forecast plot, the VAR model demonstrates a good fit, accurately capturing the patterns of past data and projecting trends for the next two years. The model forecasts an increase in the U.S. 3-year and 10-year spreads as well as the S&P 500 index, while predicting an opposite movement for the KOSPI index.
+
+This result is both interesting and economically reasonable. As the U.S. yield spreads rise, investors are likely to favor U.S. dollar–denominated assets, leading to a stronger dollar. However, this appreciation of the USD tends to weaken the Korean won (KRW), which in turn exerts downward pressure on the KOSPI index.
+
+:::
+
+
+
+# US treasury yield curve 10 Years, South Korea government bond rate 10Years, seoul housing index
+
+### data cleaning process
+
+
+
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+kor_yield_10<- kor_yield%>%
+  dplyr::select(Date,KR_10Y)
+kor_yield_monthly <- kor_yield_10 %>%
+  mutate(year_month = floor_date(Date, "month")) %>%
+  group_by(year_month) %>%
+  slice_tail(n = 1) %>%
+  ungroup() %>%
+  mutate(Date = ceiling_date(year_month, "month") - days(1))%>%
+  dplyr::select(Date,KR_10Y)
+
+
+us_yield_10<- us_yield%>%
+  dplyr::select(Date,US_10Y)
+us_yield_monthly <- us_yield_10 %>%
+  mutate(year_month = floor_date(Date, "month")) %>%
+  group_by(year_month) %>%
+  slice_tail(n = 1) %>%
+  ungroup() %>%
+  mutate(Date = ceiling_date(year_month, "month") - days(1))%>%
+  dplyr::select(Date,US_10Y)
+
+df2<- housing%>%
+  left_join(kor_yield_monthly,by = "Date")%>%
+  left_join(us_yield_monthly, by = "Date")
+
+start_year_df2  <- year(min(df2$Date))
+start_month_df2 <- month(min(df2$Date))
+
+
+
+```
+
+
+
+
+
+
+::: panel-tabset
+
+### time series plot
+
+
+
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+p2 <- plot_ly(df2, x = ~Date, y = ~housing, type = 'scatter', mode = 'lines',
+              name = "Seoul housing Index") %>%
+  layout(yaxis = list(title = "Seoul housing Index", titlefont = list(size = 14), tickfont = list(size = 12)))
+
+p3 <- plot_ly(df2, x = ~Date, y = ~KR_10Y, type = 'scatter', mode = 'lines',
+              name = "South Korea government bond yield rate(10years)") %>%
+  layout(yaxis = list(title = "South Korea yield rate(10years)", titlefont = list(size = 14), tickfont = list(size = 12)))
+
+p4 <- plot_ly(df2, x = ~Date, y = ~US_10Y, type = 'scatter', mode = 'lines',
+              name = "U.S. treasury bond yield rate(10years)") %>%
+  layout(yaxis = list(title = "KRW/USD spot rate", titlefont = list(size = 14)))
+
+subplot( p2, p3,p4, nrows = 3, shareX = TRUE, titleX = TRUE) %>%
+  layout(title = list(text = "U.S. treasury bond yield rate(10years)"))
+    
+```
+
+
+
+
+
+### parameter selection 
+
+
+
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+new_df2<- df2[,c(2:4)]
+df2.ts<-ts(new_df2,star=decimal_date(as.Date("2003-11-30",format = "%Y-%m-%d")),frequency = 12)
+VARselect(df2.ts, lag.max=10, type="both")
+```
+
+
+
+
+From parameter selction process, two parameters were suggested; p = 2,3
+
+### model summary
+
+
+
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+summary(fit <- VAR(new_df2, p=2, type="both"))
+```
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+summary(fit <- VAR(new_df2, p=3, type="both"))
+```
+
+
+
+
+
+In the VAR(2) model, the housing variable is primarily driven by its own past values, with highly significant coefficients for its first and second lags (positive and negative, respectively), implying mean-reverting dynamics. Korean and U.S. long-term interest rates (KR_10Y and US_10Y) have only weak short-run effects on housing, as most of their coefficients are statistically insignificant. The KR_10Y equation shows strong persistence—its own first and second lags are significant and positive—and a significant influence from the U.S. 10-year yield, suggesting cross-country linkages in bond markets. The U.S. yield (US_10Y) equation confirms high persistence as well, with its first lag strongly significant, while the trend term is also positive and significant, indicating a gradual upward drift. Residual correlations show moderate co-movement between KR_10Y and US_10Y (ρ ≈ 0.54) but only weak links between interest rates and housing.
+
+The VAR(3) model slightly improves the log-likelihood (from 45.63 to 61.07) and marginally lowers residual variances, suggesting a better fit. Additional lag terms introduce some new dynamics: the third lag of housing becomes positive and significant, implying cyclical adjustment, while the second lag of KR_10Y is now significant and negative, and the third lag positive, showing alternating effects on housing. In the KR_10Y equation, housing’s first, second, and third lags all become significant, reinforcing feedback from the housing market to Korean yields. The U.S. yield equation remains dominated by its own autoregressive terms, with limited cross-effects, though housing’s influence is now slightly stronger. Overall, the VAR(3) captures more complex intertemporal relationships and richer lag structures, but the incremental explanatory gain over VAR(2) is small, and most new coefficients are marginally significant.
+
+
+### CV
+
+
+
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+
+df2$Date <- as.Date(df2$Date)
+
+series_names <- c("housing", "KR_10Y", "US_10Y")
+
+
+
+ts_obj <- ts(df2[, series_names],
+             start = c(year(df2$Date[1]), month(df2$Date[1])),
+             frequency = 12)
+
+
+n <- nrow(df2)
+k<- 69
+h <- 12
+n_k <- n - k
+num_blocks <- floor(n_k / h)
+
+rmse2 <- matrix(NA_real_, n_k, 3)   
+rmse3 <- matrix(NA_real_, n_k, 3)  
+
+
+st <- tsp(ts_obj)[1] + (k - 1) / 12
+
+
+for (i in 1:num_blocks) {
+  xtrain <- window(ts_obj, end = st + i - 1)
+
+  xtest  <- window(ts_obj,
+                   start = st + (i - 1) + 1/12,
+                   end   = st + i)
+
+  if (NROW(xtest) != h) next  
+
+  fit2   <- vars::VAR(xtrain, p = 2, type = "both")
+  fcast2 <- predict(fit2, n.ahead = h)
+
+  ff2 <- cbind(
+    fcast2$fcst$housing[, 1],
+    fcast2$fcst$KR_10Y [, 1],
+    fcast2$fcst$US_10Y [, 1]
+  )
+
+  year <- st + (i - 1) + 1/12
+  ff2  <- ts(ff2, start = c(year, 1), frequency = 12)
+
+  a <- 12 * i - 11
+  b <- 12 * i
+  rmse2[a:b, ] <- sqrt((ff2 - xtest)^2)
+
+  fit3   <- vars::VAR(xtrain, p = 3, type = "both")
+  fcast3 <- predict(fit3, n.ahead = h)
+
+  ff3 <- cbind(
+    fcast3$fcst$housing[, 1],
+    fcast3$fcst$KR_10Y [, 1],
+    fcast3$fcst$US_10Y [, 1]
+  )
+
+  ff3 <- ts(ff3, start = c(year, 1), frequency = 12)
+
+  rmse3[a:b, ] <- sqrt((ff3 - xtest)^2)
+}
+
+colnames(rmse2) <- series_names
+colnames(rmse3) <- series_names
+
+month_index <- 1:n_k
+dates1 <- as.Date(df2$Date[(k + 1):n])
+
+if (length(dates1) < n_k) {
+  dates1 <- c(dates1, rep(as.Date(NA), n_k - length(dates1)))
+} else if (length(dates1) > n_k) {
+  dates1 <- dates1[1:n_k]
+}
+
+rmse2_df <- data.frame(month_index, dates1, rmse2, row.names = NULL)
+names(rmse2_df) <- c("Month","Date", series_names)
+rmse2_df$Model <- "VAR(2)"
+
+rmse3_df <- data.frame(month_index, dates1, rmse3, row.names = NULL)
+names(rmse3_df) <- c("Month","Date", series_names)
+rmse3_df$Model <- "VAR(3)"
+
+rmse_combined <- rbind(rmse2_df, rmse3_df)
+
+
+```
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+ggplot(data = rmse_combined, aes(x = Date, y = housing, color = Model)) +
+  geom_line() +
+  labs(
+    title = "CV RMSE for seoul housing index",
+    x = "Date",
+    y = "RMSE",
+    color = "Model"
+  ) +
+  theme_minimal()
+```
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+ggplot(data = rmse_combined, aes(x = Date, y = KR_10Y, color = Model)) +
+  geom_line() +
+  labs(
+    title = "CV RMSE for korea government bond rate 10 years",
+    x = "Date",
+    y = "RMSE",
+    color = "Model"
+  ) +
+  theme_minimal()
+
+```
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+ggplot(data = rmse_combined, aes(x = Date, y = US_10Y, color = Model)) +
+  geom_line() +
+  labs(
+    title = "CV RMSE for US treasury rate 10 years",
+    x = "Date",
+    y = "RMSE",
+    color = "Model"
+  ) +
+  theme_minimal()
+```
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+var1<- VAR(ts_obj,p = 2,type= "both")
+acf(residuals(var1))
+```
+
+
+
+
+
+The three line plots above show the RMSE values for three variables, comparing the VAR(2) and VAR(3) models. Although it’s somewhat difficult to clearly distinguish which model performs better based solely on the plots, the VAR(2) model appears to have slightly lower RMSE values overall. Therefore, I decided to proceed with the VAR(2) model for further analysis.
+
+last plot is a acf plot for var(2) model's residuals. From the plot, the residual autocorrelations are mostly within the 95% confidence bounds , except for a strong spike at lag 0, which simply reflects the correlation of each residual with itself. The absence of significant spikes beyond lag 0 suggests that the VAR(2) specification has successfully removed serial correlation from the system. This implies that the model order (p=2) is sufficient. 
+
+Overall, the ACF of the residuals confirms that the VAR(2) model is appropriately specified and that the residuals behave as approximately white noise. 
+
+
+
+### Forecast 
+
+
+
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+h <- 36
+fcast <- forecast(var1, h = h)
+
+hist_dates <- df2$Date
+
+
+last_date <- max(df2$Date)
+fcast_dates <- seq(last_date, by = "month", length.out = h + 1)[-1]
+fcast_dates <- ceiling_date(fcast_dates, "month") - days(1)
+
+fig1 <- plot_ly() %>%
+
+  add_lines(
+    x = tail(hist_dates, 100),
+    y = tail(df2$housing, 100),
+    name = "Historical",
+    line = list(color = "black", width = 1),
+    hovertemplate = "%{x|%Y-%m}<br>%{y:.2f}<extra></extra>"
+  ) %>%
+
+  add_lines(
+    x = fcast_dates,
+    y = as.numeric(fcast$forecast$housing$mean),
+    name = "Forecast",
+    line = list(color = "blue", width = 2),
+    hovertemplate = "%{x|%Y-%m}<br>%{y:.2f}<extra></extra>"
+  ) %>%
+
+  add_ribbons(
+    x = fcast_dates,
+    ymin = as.numeric(fcast$forecast$housing$lower[,2]),
+    ymax = as.numeric(fcast$forecast$housing$upper[,2]),
+    name = "95% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  # 80% CI
+  add_ribbons(
+    x = fcast_dates,
+    ymin = as.numeric(fcast$forecast$housing$lower[,1]),
+    ymax = as.numeric(fcast$forecast$housing$upper[,1]),
+    name = "80% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  layout(
+    title = "VAR(2) Forecast for Housing",
+    xaxis = list(
+      title = "Year",
+      type = "date",
+      tickformat = "%Y",
+      dtick = "M12"
+    ),
+    yaxis = list(title = "Housing Index"),
+    hovermode = "x unified"
+  )
+
+fig2 <- plot_ly() %>%
+  add_lines(
+    x = tail(hist_dates, 100),
+    y = tail(df2$KR_10Y, 100),
+    name = "Historical",
+    line = list(color = "black", width = 1),
+    hovertemplate = "%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>"
+  ) %>%
+  add_lines(
+    x = fcast_dates,
+    y = as.numeric(fcast$forecast$KR_10Y$mean),
+    name = "Forecast",
+    line = list(color = "blue", width = 2),
+    hovertemplate = "%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = as.numeric(fcast$forecast$KR_10Y$lower[,2]),
+    ymax = as.numeric(fcast$forecast$KR_10Y$upper[,2]),
+    name = "95% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = as.numeric(fcast$forecast$KR_10Y$lower[,1]),
+    ymax = as.numeric(fcast$forecast$KR_10Y$upper[,1]),
+    name = "80% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  layout(
+    title = "VAR(2) Forecast for Korea 10Y Yield",
+    xaxis = list(
+      title = "Year",
+      type = "date",
+      tickformat = "%Y",
+      dtick = "M12"
+    ),
+    yaxis = list(title = "Yield (%)"),
+    hovermode = "x unified"
+  )
+
+
+fig3 <- plot_ly() %>%
+  add_lines(
+    x = tail(hist_dates, 100),
+    y = tail(df2$US_10Y, 100),
+    name = "Historical",
+    line = list(color = "black", width = 1),
+    hovertemplate = "%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>"
+  ) %>%
+  add_lines(
+    x = fcast_dates,
+    y = as.numeric(fcast$forecast$US_10Y$mean),
+    name = "Forecast",
+    line = list(color = "blue", width = 2),
+    hovertemplate = "%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = as.numeric(fcast$forecast$US_10Y$lower[,2]),
+    ymax = as.numeric(fcast$forecast$US_10Y$upper[,2]),
+    name = "95% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  add_ribbons(
+    x = fcast_dates,
+    ymin = as.numeric(fcast$forecast$US_10Y$lower[,1]),
+    ymax = as.numeric(fcast$forecast$US_10Y$upper[,1]),
+    name = "80% CI",
+    line = list(color = "transparent"),
+    hoverinfo = "skip"
+  ) %>%
+  layout(
+    title = "VAR(2) Forecast for US 10Y Yield",
+    xaxis = list(
+      title = "Year",
+      type = "date",
+      tickformat = "%Y",
+      dtick = "M12"
+    ),
+    yaxis = list(title = "Yield (%)"),
+    hovermode = "x unified"
+  )
+
+
+fig1
+fig2
+fig3
+
+
+```
+
+
+
+
+The forecast suggests that yield curve rates are expected to decrease gradually over time, signaling a potential easing of monetary conditions. In contrast, the Seoul Residential Property Price Index is projected to increase, moving in the opposite direction.
+A decline in long-term yields often signals market expectations for lower policy rates in the future. Such expectations tend to stimulate the housing market, as lower interest rates reduce borrowing costs, making it cheaper to finance real estate purchases. Consequently, easier monetary conditions can lead to stronger demand and higher residential property prices.
+
+
+:::
+
+
+
+# SARIMAX model: USD/KRW spot rate ~ us-korea spread rate 3years+ us-korea spread rate 10years+ S&P500+ dollar index
+
+
+### data cleaning
+
+
+
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+spread_3y_monthly <- us_kr_spreads_3y%>%
+  mutate(year_month = floor_date(Date, "month")) %>%
+  group_by(year_month) %>%
+  slice_tail(n = 1) %>%
+  ungroup() %>%
+  mutate(Date = ceiling_date(year_month, "month") - days(1))%>%
+    dplyr::select(Date,US_KR_3Y)
+
+
+spread_10y_monthly <- us_kr_spreads_10y%>%
+  mutate(year_month = floor_date(Date, "month")) %>%
+  group_by(year_month) %>%
+  slice_tail(n = 1) %>%
+  ungroup() %>%
+  mutate(Date = ceiling_date(year_month, "month") - days(1))%>%
+  dplyr::select(Date,US_KR_10Y)
+
+
+sp500_monthly <-
+  sp500 %>%
+  mutate(year_month = floor_date(Date, "month")) %>%
+  group_by(year_month) %>%
+  slice_tail(n = 1) %>%               
+  ungroup() %>%
+  mutate(Date = ceiling_date(year_month, "month") - days(1)) %>%  
+  dplyr::select(Date, Close) %>%
+  rename(sp500_close = Close) %>%
+  arrange(Date) %>%
+  mutate(
+    return = sp500_close / lag(sp500_close) - 1,      
+    log_return = log(sp500_close) - log(lag(sp500_close))
+  )%>%
+  dplyr::select(Date,sp500_close)
+
+
+usd_monthly<-usd%>%
+  mutate(year_month = floor_date(Date, "month")) %>%
+  group_by(year_month) %>%
+  slice_tail(n = 1) %>%
+  ungroup() %>%
+  mutate(Date = ceiling_date(year_month, "month") - days(1))%>%
+  dplyr::select(Date,usd_index)
+
+kor_monthly <- kr %>%
+  mutate(year_month = floor_date(Date, "month")) %>%
+  group_by(year_month) %>%
+  slice_tail(n = 1) %>%
+  ungroup() %>%
+  mutate(Date = ceiling_date(year_month, "month") - days(1))%>%
+  dplyr::select(Date,krw)
+
+
+
+
+
+df3<- spread_3y_monthly%>%
+  left_join(spread_10y_monthly,by = "Date")%>%
+  left_join(sp500_monthly, by = "Date")%>%
+  left_join(usd_monthly,by = "Date")%>%
+  left_join(kor_monthly)
+
+start_year_df3  <- year(min(df3$Date))
+start_month_df3 <- month(min(df3$Date))
+
+ts_krw <- ts(df3$krw, 
+              star=decimal_date(as.Date("2000-12-01",format = "%Y-%m-%d")),frequency = 12)  
+
+ts_log_krw <- ts(log(df3$krw), 
+                  star=decimal_date(as.Date("2000-12-01",format = "%Y-%m-%d")),frequency = 12)
+
+```
+
+
+
+
+
+
+### manual search utility function
+
+
+
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+SARIMA.c <- function(p_range, d_range, q_range, P_range, D_range, Q_range, data) {
+  
+  # Set seasonal period
+  s <- 12
+  
+  # Initialize results storage
+  results_list <- list()
+  
+  # Iterate over parameter combinations
+  for (p in p_range) {
+    for (d in d_range) {
+      for (q in q_range) {
+        for (P in P_range) {
+          for (D in D_range) {
+            for (Q in Q_range) {
+              
+              # Apply parameter constraint to avoid overfitting
+              if (p + d + q + P + D + Q <= 10) {
+                tryCatch({
+                  # Fit SARIMA model
+                  model <- Arima(data, order = c(p, d, q), seasonal = c(P, D, Q))
+                  
+                  # Store results
+                  results_list[[length(results_list) + 1]] <- c(p, d, q, P, D, Q, model$aic, model$bic, model$aicc)
+                }, error = function(e) {
+                  # Handle errors without breaking the loop
+                  cat("Model failed for (p=", p, ", d=", d, ", q=", q, ", P=", P, ", D=", D, ", Q=", Q, ")\n")
+                })
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  # Convert results to a tidy data frame
+  results_df <- as.data.frame(do.call(rbind, results_list))
+  colnames(results_df) <- c("p", "d", "q", "P", "D", "Q", "AIC", "BIC", "AICc")
+  
+  return(results_df)
+}
+
+  
+```
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+# arima 
+ARIMA.c <- function(p_range, d_range, q_range, data,
+                    include_drift = TRUE,
+                    quiet = TRUE) {
+
+  results <- list()
+
+  for (p in p_range) {
+    for (d in d_range) {
+      for (q in q_range) {
+
+        fit <- tryCatch(
+          {
+            forecast::Arima(
+              y = data,
+              order = c(p, d, q),
+              include.drift = include_drift
+            )
+          },
+          error = function(e) {
+            if (!quiet) message(sprintf("Model failed for p=%d d=%d q=%d: %s", p, d, q, e$message))
+            NULL
+          }
+        )
+
+        if (!is.null(fit)) {
+          results[[length(results) + 1L]] <- data.frame(
+            p = p, d = d, q = q,
+            AIC  = fit$aic,
+            BIC  = fit$bic,
+            AICc = fit$aicc,
+            stringsAsFactors = FALSE
+          )
+        }
+      }
+    }
+  }
+
+  if (length(results) == 0L) {
+    return(data.frame(
+      p = integer(), d = integer(), q = integer(),
+      AIC = double(), BIC = double(), AICc = double()
+    ))
+  }
+
+  out <- do.call(rbind, results)
+  rownames(out) <- NULL
+  out[order(out$AIC), ]
+}
+
+
+```
+
+
+
+
+### log transformation 
+
+In EDA and univariate section, taking log for S&P500 index and USD index was better, so it will continue to use log transformation. however, here, FX rate needs to be checked
+
+
+
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+diff_krw <- diff(ts_krw)
+diff_log_krw <- diff(ts_log_krw)
+
+
+p1 <- ggplot() +
+  geom_line(aes(x = time(diff_krw), y = diff_krw), color = "blue") +
+  labs(title = "Differenced Log-Transformed KRW/USD spot exchange rate",
+       x = "Time",
+       y = "KRW to USD") +
+  theme_minimal()
+
+p2 <- ggplot() +
+  geom_line(aes(x = time(diff_log_krw), y = diff_log_krw), color = "red") +
+  labs(title = "Differenced Log-Transformed KRW/USD spot exchange rate",
+       x = "Time",
+       y = "KRW to USD") +
+  theme_minimal()
+
+
+
+
+p1 / p2
+
+
+```
+
+
+
+
+from the plot, log transformation don't give dramatical change, so for this model, original value for KRW/USD spot exchange rate will be used. 
+
+
+
+:::panel-tabset
+
+### time series plot
+
+
+
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+
+p5 <- plot_ly(df3, x = ~Date, y = ~US_KR_3Y, type = "scatter", mode = "lines",
+              name = "kor-us 3y bond spread rate") %>%
+layout(yaxis = list(title = "kor-us 3y bond spread rate", titlefont = list(size = 14), tickfont = list(size = 12)))
+
+p6 <- plot_ly(df3, x = ~Date, y = ~US_KR_10Y, type = "scatter", mode = "lines",
+              name = "kor-us 10y bond spread rate") %>%
+layout(yaxis = list(title = "kor-us 10y bond spread rate", titlefont = list(size = 14), tickfont = list(size = 12)))
+
+p7 <- plot_ly(df3, x = ~Date, y = ~log(sp500_close), type = "scatter", mode = "lines",
+              name = "sp500 Index") %>%
+ layout(yaxis = list(title = "sp500 Index", titlefont = list(size = 14), tickfont = list(size = 12)))
+
+p8 <- plot_ly(df3, x = ~Date, y = ~log(usd_index), type = "scatter", mode = "lines",
+              name = "Usd Index") %>%
+layout(yaxis = list(title = "Usd Index", titlefont = list(size = 14), tickfont = list(size = 12)))
+
+p9 <- plot_ly(df3, x = ~Date, y = ~krw, type = 'scatter', mode = 'lines',
+              name = "KRW/USD spot rate") %>%
+  layout(yaxis = list(title = "KRW/USD spot rate", titlefont = list(size = 14), tickfont = list(size = 12)))
+subplot(p5,p6,nrows = 2, shareX = TRUE, titleY = TRUE) %>%
+  layout(xaxis = list(title = "Date"))
+
+subplot(p7,p8,p9, nrows = 3, shareX = TRUE, titleY = TRUE) %>%
+  layout(xaxis = list(title = "Date"))
+```
+
+
+
+
+
+
+### auto.arima
+
+
+
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+df3$log_usd_index<- log(df3$usd_index)
+df3$log_sp500_close<- log(df3$sp500_close)
+df3$l1<-log(df3$US_KR_3Y) 
+df3$l2<-log(df3$US_KR_10Y)
+df3.ts<- ts(df3[,c( "US_KR_3Y","US_KR_10Y","log_usd_index","log_sp500_close","krw")],start = c(2000,12),frequency = 12)
+y1<- df3.ts[,"krw"]
+xreg1 <- df3.ts[, !(colnames(df3.ts) %in% "krw")]
+fit_auto1<- auto.arima(y1,xreg = xreg1)
+summary(fit_auto1)
+checkresiduals(fit_auto1)
+```
+
+
+
+
+
+The auto.arima model exhibits noticeable autocorrelation, with a significant spike in the ACF before lag 12, suggesting the presence of remaining short-term dependence that the model has not fully captured. Additionally, the residual series displays visible fluctuations, including a pronounced period of volatility between 2008 and 2010, indicating potential structural changes or outliers during that time. These patterns imply that the model may be under-differenced or missing key components to adequately capture the temporal dynamics and seasonal structure of the data.
+
+
+### manual search
+
+
+
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+m1<- lm(krw~ US_KR_3Y+US_KR_10Y+log_sp500_close+log_usd_index,data = df3)
+summary(m1)
+
+```
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+library(patchwork)
+res.fit1<- ts(residuals(m1),start = c(2000,12),frequency = 12)
+ 
+acf1<- ggAcf(res.fit1) +
+  ggtitle("Autocorrelation Function (ACF) of Residuals")
+pacf1<- ggPacf(res.fit1) +
+  ggtitle("Partial Autocorrelation Function (PACF) of Residuals")
+
+acf1 / pacf1
+
+diff1<- diff(res.fit1)
+seasonal_diff1<- diff(diff1,lag = 12)
+
+diff_p1 <- ggAcf(seasonal_diff1) +
+  ggtitle("ACF of Seasonally Differenced Residuals") +
+  theme_minimal()
+
+diff_p2 <- ggPacf(seasonal_diff1) +
+  ggtitle("PACF of Seasonally Differenced Residuals") +
+  theme_minimal()
+
+diff_p1 /diff_p2
+```
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+
+output1 <- SARIMA.c(
+  p_range = 0:2, q_range = 0:2, 
+  d_range = 0:1, D_range = 0:1, 
+  P_range = 1, Q_range = 0:2, 
+  data = res.fit1
+)
+
+
+minaic <- output1[which.min(output1$AIC), ]
+minbic <- output1[which.min(output1$BIC), ]
+
+print(minaic)
+
+model_output_1 <- capture.output(sarima(res.fit1, 0,1,2,1,1,1,12))
+model_output_2 <- capture.output(sarima(res.fit1, 0,0,5,1,0,1,12))
+```
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+
+extract_model_diagnostics <- function(model_output) {
+  start_line <- grep("Coefficients", model_output)  # Find where coefficients start
+  end_line <- length(model_output)  # Capture till the last line
+  if (length(start_line) > 0) {
+    cat(model_output[start_line:end_line], sep = "\n")  # Print coefficient section
+  } else {
+    cat("No coefficient details found.\n")  # Handle cases where output format changes
+  }
+}
+
+extract_model_diagnostics(model_output_1)
+extract_model_diagnostics(model_output_2)
+```
+
+
+
+
+The ARIMA(0,1,2)(1,1,1)[12](manual search) model produces residuals that behave much closer to white noise. The residual plot shows less obvious patterns or persistent fluctuations over time compared with the auto.arima model , indicating that both regular and seasonal differencing have successfully stabilized the series. The PACF of the residuals shows no significant spikes within the confidence bounds, suggesting that autocorrelation has been effectively removed. The Q–Q plot of standardized residuals aligns closely with the theoretical normal line, with only minor deviations at the tails. Furthermore, the Ljung–Box test p-values remain above the significance level across most lags, confirming the adequacy of the model fit. Overall, this model captures both the short-term and seasonal dynamics of the data well and provides a significant improvement over the auto.arima model.
+
+
+### cross-validation
+
+
+
+
+```{r,message = F, warning = F}
+
+#| echo: true
+#| code-fold: true
+
+library(knitr)
+library(kableExtra)
+
+n <- length(res.fit1)  
+
+# Calculate k as 1/3rd of the data, rounded down to the nearest multiple of 12
+k <- floor(n / 3 / 12) * 12  # Example: If total length is 144, then k = 48
+
+h <- 12  # Forecast horizon (predicting 12 months ahead)
+
+# Initialize matrices for RMSE
+rmse1 <- matrix(NA, nrow = (n-k), ncol = h)  # RMSE for Model 1
+rmse2 <- matrix(NA, nrow = (n-k), ncol = h)  # RMSE for Model 2
+
+# Define rolling start time
+st <- tsp(res.fit1)[1] + (k - 2) / 12  
+
+# Walk-Forward Validation Loop
+for (i in 1:(n-k)) {
+  # Define rolling training and test sets
+  xtrain <- window(res.fit1, end = st + i / 12)  
+  xtest <- window(res.fit1, start = st + (i + 1) / 12, end = st + (i + h) / 12)  # 12-step ahead test data
+  
+  fit1 <- Arima(xtrain, order = c(0,1,2), seasonal = list(order = c(1,1,1), period = 12),
+                include.drift = FALSE, lambda = 0, method = "ML")
+  fcast1 <- forecast(fit1, h = h)
+  
+  fit2 <- Arima(xtrain, order = c(0,0,5), seasonal = list(order = c(1,0,1), period = 12),
+                include.drift = FALSE, lambda = 0, method = "ML")
+  fcast2 <- forecast(fit2, h = h)
+  
+  rmse1[i, 1:length(xtest)] <- sqrt(mean((fcast1$mean - xtest)^2, na.rm = TRUE))
+  rmse2[i, 1:length(xtest)] <- sqrt(mean((fcast2$mean - xtest)^2, na.rm = TRUE))
+}
+
+rmse1_avg <- colMeans(rmse1, na.rm = TRUE)
+rmse2_avg <- colMeans(rmse2, na.rm = TRUE)
+
+# Create a DataFrame for Plotting
+rmse_table1 <- data.frame(
+  Horizon1 = 1:h,
+  RMSE_Model1 = rmse1_avg,
+  RMSE_Model2 = rmse2_avg
+)
+
+# Display RMSE Table
+kable(rmse_table1, format = "html", digits = 4, caption = "RMSE for 12-Step Forecasts") %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+
+```
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+
+ggplot(rmse_table1, aes(x = Horizon1)) +
+  geom_line(aes(y = RMSE_Model1, color = "SARIMA(0,1,2)(1,1,1)[12]"), size = 1) +
+  geom_line(aes(y = RMSE_Model2, color = "SARIMA(0,0,5)(1,0,1)[12]"), size = 1) +
+  labs(title = "RMSE Comparison for 12-Step Forecasts",
+       x = "Forecast Horizon (Months Ahead)",
+       y = "Root Mean Squared Error (RMSE)") +
+  scale_color_manual(name = "Models", values = c("red", "blue")) +
+  theme_minimal()
+```
+
+
+
+
+
+From the plots, the SARIMA(0,1,2)(1,1,1)[12] model demonstrates strong overall performance, capturing the main patterns and seasonal dynamics effectively across most of the time series. In contrast, the SARIMA(0,0,5)(1,0,1)[12] model performs slightly better in predicting values at the very beginning and end of the series, suggesting improved short-term and long-horizon accuracy. However, considering consistency and overall fit throughout the data, the SARIMA(0,1,2)(1,1,1)[12] model provides a more balanced and reliable performance. Therefore, this model is selected as the preferred choice.
+
+### model fitting
+
+
+
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+
+final_fit1<- Arima(y1,order = c(0,1,2),seasonal = list(order = c(1,1,1),period = 12),xreg = xreg1)
+summary(final_fit1)
+```
+
+
+
+
+$$
+(1+0.0513\,\B^{12})\,(1-\B)(1-\B^{12})\,y_t
+=
+-17.3951\,\text{US\_KR\_3Y}_t
+-9.6550\,\text{US\_KR\_10Y}_t
++883.1751\,\log(\text{usd\_index})_t
+-219.0293\,\log(\text{sp500\_close})_t
++\,(1-0.1410\,\B-0.1266\,\B^2)\,(1-1.0000\,\B^{12})\,\varepsilon_t.
+
+$$
+$$
+
+\begin{aligned}
+(1 + 0.0513\,B^{12})(1 - B)(1 - B^{12})\,y_t
+\\[4pt]
+=\;
+-\,17.3951\,\text{US\_KR\_3Y}_t
+\;-\; 9.6550\,\text{US\_KR\_10Y}_t
+\;+\; 883.1751\,\log(\text{usd\_index})_t
+\;-\; 219.0293\,\log(\text{sp500\_close})_t
+\\[6pt]
+\quad+\;
+(1 - 0.1410\,B - 0.1266\,B^{2})(1 - 1.0000\,B^{12})\,\varepsilon_t.
+\end{aligned}
+
+
+$$
+
+$$
+\begin{alignedat}{1}
+&(1 + 0.0513\,B^{12})(1 - B)(1 - B^{12})\,y_t \\[4pt]
+&=\,-17.3951\,\text{US_KR_3Y}_t
+- 9.6550\,\text{US_KR_10Y}_t
++ 883.1751\,\log(\text{usd_index})_t
+- 219.0293\,\log(\text{sp500_close})_t \\[6pt]
+&\quad+\,(1 - 0.1410\,B - 0.1266\,B^{2})(1 - 1.0000\,B^{12})\,\varepsilon_t.
+\end{alignedat}
+$$
+
+
+### forecast
+
+
+
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+fin_short_fit <- auto.arima(xreg1[, "US_KR_3Y"])
+fshort <- forecast(fin_short_fit, h = 32) 
+
+fin_long_fit <- auto.arima(xreg1[, "US_KR_10Y"])
+flong <- forecast(fin_long_fit, h = 32)
+
+usd_fit <- auto.arima(xreg1[, "log_usd_index"])
+fusd <- forecast(usd_fit, h = 32)
+
+sp_fit <- auto.arima(xreg1[, "log_sp500_close"])
+fsp <- forecast(sp_fit, h = 32)
+
+fxreg1 <- cbind(US_KR_3Y = fshort$mean,
+                US_KR_10Y = flong$mean,
+                log_usd_index = fusd$mean,
+                log_sp500_close = fsp$mean)
+
+```
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+library(plotly)
+
+fcast1 <- forecast(final_fit1, xreg = fxreg1, h = 32)
+
+fcast_df1 <- data.frame(
+  Date = as.Date(time(fcast1$mean)),
+  Forecast = as.numeric(fcast1$mean),
+  Lower80 = as.numeric(fcast1$lower[,1]),
+  Upper80 = as.numeric(fcast1$upper[,1]),
+  Lower95 = as.numeric(fcast1$lower[,2]),
+  Upper95 = as.numeric(fcast1$upper[,2])
+)
+
+orig_df <- data.frame(
+  Date = as.Date(time(y1)),
+  Actual = as.numeric(y1)
+)
+
+
+plot_ly() |>
+  add_lines(data = orig_df,
+            x = ~Date, y = ~Actual,
+            name = "Actual") |>
+  add_lines(data = fcast_df1,
+            x = ~Date, y = ~Forecast,
+            name = "Forecast") |>
+  add_ribbons(data = fcast_df1,
+              x = ~Date,
+              ymin = ~Lower95,
+              ymax = ~Upper95,
+              name = "95% CI",
+              opacity = 0.2,
+              showlegend = FALSE) |>
+  add_ribbons(data = fcast_df1,
+              x = ~Date,
+              ymin = ~Lower80,
+              ymax = ~Upper80,
+              name = "80% CI",
+              opacity = 0.3,
+              showlegend = FALSE) |>
+  layout(
+    title = "Forecast of KRW/USD exchange spot rate for next 36 month",
+    xaxis = list(title = "Year"),
+    yaxis = list(title = "KRW to one USD")
+  )
+```
+
+
+
+
+
+The forecast demonstrates a good fit, closely following the pattern of previous values. Over time, the KRW is projected to appreciate gradually, showing only minor changes and limited fluctuations.
+
+:::
+
+
+
+# SARIMAX model : South korea exports(vs USA) ~ VIX + US manufacturing Index + KRW/USD spot rate
+
+
+### data cleaning 
+
+
+
+
+```{r,message = F,warning = F }
+#| echo: true
+#| code-fold: true
+
+
+usmi<- read_csv("../data/usmi.csv")
+usmi<- usmi%>% 
+  rename(Date = observation_date, usm = INDPRO)%>%
+  mutate(Date = ymd(Date)) %>%
+  arrange(Date)
+
+vix_monthly_m2 <- vix %>%
+  mutate(year_month = floor_date(Date, "month")) %>%
+  group_by(year_month) %>%
+  slice_head(n = 1) %>%
+  ungroup() %>%
+  mutate(Date = floor_date(year_month, "month")) %>%  
+  dplyr::select(Date, vix)
+
+kor_monthly_m2 <- kr %>%
+  mutate(year_month = floor_date(Date, "month")) %>%
+  group_by(year_month) %>%
+  slice_head(n = 1) %>%
+  ungroup() %>%
+  mutate(Date = floor_date(year_month, "month")) %>%  
+  dplyr::select(Date, krw)
+
+trade_exports<- trade %>%
+  dplyr::select(Date, export_USD)%>%
+  rename(exports = export_USD)
+
+df4<- trade_exports%>%
+  left_join(usmi,by = "Date")%>%
+  left_join(vix_monthly_m2,by = "Date")%>%
+  left_join(kor_monthly_m2, by = "Date")
+
+start_year_df4  <- year(min(df4$Date))
+start_month_df4 <- month(min(df4$Date))
+```
+
+
+
+
+:::panel-tabset
+
+### time series plot
+
+
+
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+p9 <- plot_ly(df4, x = ~Date, y = ~exports, type = "scatter", mode = "lines",
+              name = "South korea exports(US)") %>%
+layout(yaxis = list(title = "South korea exports(US)", titlefont = list(size = 14), tickfont = list(size = 12)))
+
+p10 <- plot_ly(df4, x = ~Date, y = ~usm, type = "scatter", mode = "lines",
+              name = "US manufacturing Index") %>%
+layout(yaxis = list(title = "US manufacturing Index", titlefont = list(size = 14), tickfont = list(size = 12)))
+
+p11 <- plot_ly(df4, x = ~Date, y = ~vix, type = "scatter", mode = "lines",
+              name = "VIX index") %>%
+layout(yaxis = list(title = "VIX index", titlefont = list(size = 14), tickfont = list(size = 12)))
+
+p12 <- plot_ly(df4, x = ~Date, y = ~krw, type = 'scatter', mode = 'lines',
+              name = "KRW/USD spot rate") %>%
+  layout(yaxis = list(title = "KRW/USD spot rate", titlefont = list(size = 14), tickfont = list(size = 12)))
+
+
+subplot(p9,p12, nrows = 2, shareX = TRUE, titleY = TRUE) %>%
+  layout(xaxis = list(title = "Date"))
+
+subplot(p10,p11, nrows = 2, shareX = TRUE, titleY = TRUE) %>%
+  layout(xaxis = list(title = "Date"))
+
+```
+
+
+
+
+
+
+### auto.arima
+
+
+
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+df4.ts<- ts(df4[,c( "vix","usm","krw","exports")],start = c(1993,1),frequency = 12)
+y2<- df4.ts[,"exports"]
+xreg2 <- df4.ts[, !(colnames(df4.ts) %in% "exports")]
+fit_auto2<- auto.arima(y2,xreg = xreg2)
+summary(fit_auto2)
+checkresiduals(fit_auto2)
+```
+
+
+
+
+
+The ARIMA(0,1,1)(0,0,2)[12] model from auto.arima() yields residuals that fluctuate randomly around zero, though variability increases in recent years, indicating the fit is not perfect. The residual ACF shows only mild autocorrelation, with most lags within the 95% bounds, but a faint seasonal signal remains near lag 12. The residual histogram is approximately normal, with slight skewness driven by a few large observations.
+
+
+
+### manual search
+
+
+
+
+```{r}
+#| echo: true
+#| code-fold: true
+
+m2<- lm(exports~ usm+vix+krw, data = df4)
+summary(m2)
+
+```
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+library(patchwork)
+res.fit2<- ts(residuals(m2),start = c(1993,1),frequency = 12)
+ 
+acf2<- ggAcf(res.fit2) +
+  ggtitle("Autocorrelation Function (ACF) of Residuals")
+pacf2<- ggPacf(res.fit2) +
+  ggtitle("Partial Autocorrelation Function (PACF) of Residuals")
+
+acf2 / pacf2
+
+diff2<- diff(res.fit2)
+seasonal_diff2<- diff(diff2,lag = 12)
+
+diff_p3 <- ggAcf(seasonal_diff2) +
+  ggtitle("ACF of Seasonally Differenced Residuals") +
+  theme_minimal()
+
+diff_p4 <- ggPacf(seasonal_diff2) +
+  ggtitle("PACF of Seasonally Differenced Residuals") +
+  theme_minimal()
+
+diff_p3 /diff_p4
+```
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+
+output2 <- SARIMA.c(
+  p_range = 0:3, q_range = 0:3, 
+  d_range = 1, D_range = 1, 
+  P_range = 0:1, Q_range = 0:1, 
+  data = res.fit2
+)
+
+
+minaic <- output2[which.min(output2$AIC), ]
+minbic <- output2[which.min(output2$BIC), ]
+
+print(minaic)
+print(minbic)
+model_output_3 <- capture.output(sarima(res.fit2, 3,1,3,1,1,1,12))
+model_output_4 <- capture.output(sarima(res.fit2, 0,1,1,0,1,1,12))
+model_output_5 <- capture.output(sarima(res.fit2, 0,1,1,0,0,2,12))
+```
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+
+extract_model_diagnostics <- function(model_output) {
+  start_line <- grep("Coefficients", model_output)  # Find where coefficients start
+  end_line <- length(model_output)  # Capture till the last line
+  if (length(start_line) > 0) {
+    cat(model_output[start_line:end_line], sep = "\n")  # Print coefficient section
+  } else {
+    cat("No coefficient details found.\n")  # Handle cases where output format changes
+  }
+}
+
+extract_model_diagnostics(model_output_3)
+extract_model_diagnostics(model_output_4)
+extract_model_diagnostics(model_output_5)
+```
+
+
+
+
+
+All three models display similar residual patterns, characterized by random fluctuations around zero with a few noticeable outlier spikes. The ACF plots of the residuals also show comparable behavior across models; however, the ARIMA(3,1,3)(1,1,1)[12] model performs slightly better, as its autocorrelations remain within the significance bounds across most lags. The normal Q–Q plots indicate that all models exhibit similar residual distributions, with deviations at the tails suggesting the presence of non-normality often observed in time series data. Although the Ljung–Box test results indicate that none of the models fully satisfy the white noise assumption—since most p-values fall below the significance threshold—the ARIMA(0,1,1)(0,1,1)[12] model appears to offer a marginally better fit compared to the others.
+
+
+### cross-validation
+
+
+
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+library(knitr)
+library(kableExtra)
+
+n <- length(res.fit2)  
+
+# Calculate k as 1/3rd of the data, rounded down to the nearest multiple of 12
+k <- floor(n / 3 / 12) * 12 
+
+h <- 12  # Forecast horizon (predicting 12 months ahead)
+
+# Initialize matrices for RMSE
+rmse1 <- matrix(NA, nrow = (n-k), ncol = h)  # RMSE for Model 1
+rmse2 <- matrix(NA, nrow = (n-k), ncol = h)  # RMSE for Model 2
+rmse3 <- matrix(NA, nrow = (n-k), ncol = h)  # RMSE for Model 3
+# Define rolling start time
+st <- tsp(res.fit2)[1] + (k - 2) / 12  
+
+# Walk-Forward Validation Loop
+for (i in 1:(n - k)) {
+  xtrain <- window(res.fit2, end = st + i / 12)
+  xtest  <- window(res.fit2, start = st + (i + 1) / 12, end = st + (i + h) / 12)
+
+  tryCatch({
+    xtrain <- jitter(xtrain, factor = 1e-6)
+
+    fit1 <- Arima(xtrain, order = c(3,1,3), seasonal = list(order = c(1,1,1), period = 12),
+                  method = "CSS-ML", include.drift = FALSE)
+    fcast1 <- forecast(fit1, h = h)
+
+    fit2 <- Arima(xtrain, order = c(0,1,1), seasonal = list(order = c(0,1,1), period = 12),
+                  method = "CSS-ML", include.drift = FALSE)
+    fcast2 <- forecast(fit2, h = h)
+
+    fit3 <- Arima(xtrain, order = c(0,1,1), seasonal = list(order = c(0,0,2), period = 12),
+                  method = "CSS-ML", include.drift = FALSE)
+    fcast3 <- forecast(fit3, h = h)
+
+    rmse1[i, 1:length(xtest)] <- sqrt(mean((fcast1$mean - xtest)^2, na.rm = TRUE))
+    rmse2[i, 1:length(xtest)] <- sqrt(mean((fcast2$mean - xtest)^2, na.rm = TRUE))
+    rmse3[i, 1:length(xtest)] <- sqrt(mean((fcast3$mean - xtest)^2, na.rm = TRUE))
+  },
+  error = function(e) {
+    message(sprintf(" Iteration %d failed: %s", i, e$message))
+  })
+}
+
+rmse1_avg <- colMeans(rmse1, na.rm = TRUE)
+rmse2_avg <- colMeans(rmse2, na.rm = TRUE)
+rmse3_avg <- colMeans(rmse3, na.rm = TRUE)
+
+# Create a DataFrame for Plotting
+rmse_table1 <- data.frame(
+  Horizon1 = 1:h,
+  RMSE_Model1 = rmse1_avg,
+  RMSE_Model2 = rmse2_avg,
+  RMSE_Model3 = rmse3_avg
+)
+
+# Display RMSE Table
+kable(rmse_table1, format = "html", digits = 4, caption = "RMSE for 12-Step Forecasts") %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+
+```
+
+```{r,warning = F,message = F}
+#| echo: true
+#| code-fold: true
+
+
+ggplot(rmse_table1, aes(x = Horizon1)) +
+  geom_line(aes(y = RMSE_Model1, color = "SARIMA(3,1,3)(1,1,1)[12]"), size = 1) +
+  geom_line(aes(y = RMSE_Model2, color = "SARIMA(0,1,1)(0,1,1)[12]"), size = 1) +
+  geom_line(aes(y = RMSE_Model3, color = "SARIMA(0,1,1)(0,0,2)[12]"), size = 1) +
+  labs(title = "RMSE Comparison for 12-Step Forecasts",
+       x = "Forecast Horizon (Months Ahead)",
+       y = "Root Mean Squared Error (RMSE)") +
+  scale_color_manual(name = "Models", values = c("orange","red", "blue")) +
+  theme_minimal()
+```
+
+
+
+
+From the plot, SARIMA(3,1,3)(1,1,1)[12] performs better than other models, so SARIMA(3,1,3)(1,1,1)[12] model is best model. 
+
+### model fitting
+
+
+
+
+```{r,message = F, warning = F}
+#| echo: true
+#| code-fold: true
+
+
+final_fit2<- Arima(y2,order = c(3,1,3),seasonal = list(order = c(1,1,1),period = 12),xreg = xreg2)
+summary(final_fit2)
+```
+
+
+
+
+
+$$
+\begin{aligned}
+\bigl(1 + 1.216\,B + 1.0579\,B^{2} + 0.0649\,B^{3}\bigr)
+\bigl(1 + 0.0829\,B^{12}\bigr) w_t
+\\[4pt]
+=\;
+-\,6911.305\,\mathrm{vix}_t
+\;+\; 97{,}511.41\,\mathrm{usm}_t
+\;-\; 220.2439\,\mathrm{krw}_t \\[6pt]
+\quad+\;
+\bigl(1 + 0.6024\,B + 0.3140\,B^{2} - 0.5152\,B^{3}\bigr)
+\bigl(1 - 0.8007\,B^{12}\bigr)\varepsilon_t, \\[6pt]
+\varepsilon_t &\sim \mathcal{N}(0, \sigma^2).
+\end{aligned}
+$$
+
+
+### forecast
+
+
+
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+usm_fit <- auto.arima(xreg2[, "usm"])
+fusm <- forecast(usm_fit, h = 48) 
+
+vix_fit <- auto.arima(xreg2[, "vix"])
+fvix <- forecast(vix_fit, h = 48)
+
+krw_fit <- auto.arima(xreg2[, "krw"])
+fkrw <- forecast(krw_fit, h = 48)
+
+
+fxreg2 <- cbind(vix = fvix$mean,
+                usm = fusm$mean,
+                krw = fkrw$mean)
+
+
+```
+
+```{r,message = F,warning = F}
+#| echo: true
+#| code-fold: true
+
+
+library(plotly)
+
+fcast2 <- forecast(final_fit2, xreg = fxreg2, h = 48)
+
+orig_df <- data.frame(
+  Date   = as.Date(as.yearmon(time(y2))),
+  Actual = as.numeric(y2)
+)
+
+fcast_df2 <- data.frame(
+  Date     = as.Date(as.yearmon(time(fcast2$mean))),
+  Forecast = as.numeric(fcast2$mean),
+  Lower80  = as.numeric(fcast2$lower[,1]),
+  Upper80  = as.numeric(fcast2$upper[,1]),
+  Lower95  = as.numeric(fcast2$lower[,2]),
+  Upper95  = as.numeric(fcast2$upper[,2])
+)
+
+
+plot_ly() |>
+  add_lines(data = orig_df,
+            x = ~Date, y = ~Actual,
+            name = "Actual") |>
+  add_lines(data = fcast_df2,
+            x = ~Date, y = ~Forecast,
+            name = "Forecast") |>
+  add_ribbons(data = fcast_df2,
+              x = ~Date,
+              ymin = ~Lower95,
+              ymax = ~Upper95,
+              name = "95% CI",
+              opacity = 0.2,
+              showlegend = FALSE) |>
+  add_ribbons(data = fcast_df2,
+              x = ~Date,
+              ymin = ~Lower80,
+              ymax = ~Upper80,
+              name = "80% CI",
+              opacity = 0.3,
+              showlegend = FALSE) |>
+  layout(
+    title = "Forecast of South korea export to US for next 48 month",
+    xaxis = list(title = "Year"),
+    yaxis = list(title = "thousand USD")
+  )
+```
+
+
+
+
+
+The forecast demonstrates a strong fit, effectively capturing the pattern of historical values. Over the projection horizon, Korea’s exports in U.S. dollars are expected to exhibit an overall upward trend, although short-term monthly fluctuations are likely to continue.
+
+:::
+
+
+
+# Conclusion 
+
+
+The model-fitting process was satisfactory and produced reasonable forecasts across the four specifications. While the results are encouraging, no model is perfect, and additional refinement would further strengthen the analysis. Because macroeconomic and financial outcomes are shaped by many interacting forces, any empirical model will have limitations. Important drivers can be difficult to observe or may change over time, so the forecasts should be interpreted with appropriate caution.
+
+Even so, the multivariate analysis yielded meaningful insights that align with established economic relationships. None of the models produced results that ran counter to typical behavior. Instead, the estimated effects were broadly consistent with how key variables usually interact—through risk sentiment, interest-rate differentials, exchange-rate channels, and demand conditions—making the forecast interpretations economically credible.
+
+For the VAR linking U.S. and Korean equities (S&P 500, VIX, U.S. yield spread, and KOSPI), the forecast plot indicates firmer U.S. equity conditions and wider yield spreads alongside a softer KOSPI. This is consistent with the discount-rate and risk-transmission channels: tighter U.S. financial conditions and stronger dollar dynamics raise discount rates, elevate global risk premia, and tend to weigh on KRW-sensitive Korean equities.
+
+For the VAR examining rate pass-through to Seoul housing (U.S. 10Y, Korea 10Y, and Seoul HPI), the forecast shows gradually easing long-term yields and a firmer housing index. The opposite co-movement is exactly what the affordability channel predicts: declines in global and domestic long rates filter into borrowing costs with lags, supporting housing demand and prices over time.
+For the SARIMAX model of USD/KRW (with rate differentials, U.S. equities/risk, and a broad dollar factor as exogenous drivers), the forecast suggests a mild KRW appreciation path with limited volatility. This reflects the background mechanism in which narrower rate differentials, improved risk sentiment, and a cooler broad dollar typically favor KRW strength, while the ARIMA component absorbs serial dependence in the exchange rate.
+
+For the SARIMAX model of Korea’s exports to the United States (driven by U.S. demand, the exchange rate, and risk conditions), the forecast points to an upward trend tempered by month-to-month noise. Stronger U.S. manufacturing activity pulls Korean exports higher, while exchange-rate valuation and risk/financing conditions modulate near-term fluctuations—patterns commonly observed for dollar-invoicing exporters.
+
+Looking ahead, the models can be enhanced with deeper diagnostics, and the addition of relevant external variables such as global demand proxies beyond the U.S., commodity prices, and credit conditions. Taken together, the four models provide a coherent basis for narrative forecasting while highlighting clear avenues for continued improvement.
+
+
+
+# Reference
